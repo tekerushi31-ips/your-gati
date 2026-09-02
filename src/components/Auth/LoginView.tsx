@@ -1,172 +1,208 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
-import type { UserRole } from '../../types';
-import { 
-  Lock, 
-  Mail, 
-  ArrowRight, 
-  UserCheck, 
-  Building2, 
-  Layers, 
-  Landmark,
-  Sparkles
-} from 'lucide-react';
+import { Lock, Mail, ArrowRight } from 'lucide-react';
 
-export const LoginView: React.FC<{ onNavigateToSignup: () => void }> = ({ onNavigateToSignup }) => {
-  const { login, loginAsDemoAccount } = useAuth();
-  const { showToast, setActivePage } = useApp();
+interface LoginViewProps {
+  onNavigateToSignup: () => void;
+}
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
+  const { login } = useAuth();
+  const { showToast } = useApp();
+  
+  const [email, setEmail] = useState('citizen@gati.in');
+  const [password, setPassword] = useState('password123');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      showToast('Please enter your email and password', 'warning');
+      return;
+    }
 
-    setIsSubmitting(true);
+    setLoading(true);
     try {
       await login(email, password);
-      showToast('Logged in successfully', 'success');
-      setActivePage('citizen-dashboard');
+      showToast('Signed in successfully', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Login failed. Please check credentials.', 'error');
+      showToast(err.message || 'Failed to sign in', 'error');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const handleQuickDemoLogin = async (role: UserRole) => {
-    await loginAsDemoAccount(role);
-    showToast(`Logged in as ${role.toUpperCase()} (SIH Demo Account)`, 'info');
-    if (role === 'university') setActivePage('university-dashboard');
-    else if (role === 'industry') setActivePage('industry-dashboard');
-    else if (role === 'admin') setActivePage('admin-dashboard');
-    else setActivePage('citizen-dashboard');
+  const handleQuickSelect = (roleEmail: string) => {
+    setEmail(roleEmail);
+    setPassword('password123');
   };
 
   return (
-    <div className="max-w-md mx-auto py-12 px-4 animate-fade-in space-y-6">
+    <div className="w-full max-w-4xl mx-auto font-sans animate-fade-in p-4 sm:p-6">
       
-      {/* Brand Header */}
-      <div className="text-center space-y-2">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 text-white font-black text-3xl flex items-center justify-center mx-auto shadow-xl shadow-emerald-950">
-          G
-        </div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">YOUR GATI</h1>
-        <p className="text-xs font-bold text-emerald-600 tracking-tight">"Your Problem. Our Universities. One GATI Forward."</p>
-        <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-mono font-bold rounded-full border border-slate-200 uppercase">
-          Citizen Portal Login
-        </span>
-      </div>
-
-      {/* Login Form Card */}
-      <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4">
+      {/* TWO COLUMN DESKTOP LAYOUT */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-2">
         
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Email Address</label>
-          <div className="relative">
-            <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="email"
-              required
-              placeholder="user@domain.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl pl-9 pr-4 py-3 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-all"
-            />
+        {/* LEFT COLUMN: BRAND & SIH MISSION */}
+        <div className="bg-slate-900 text-white p-8 sm:p-10 flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 font-extrabold text-white flex items-center justify-center text-base shadow-sm">
+                G
+              </div>
+              <span className="font-extrabold text-xl tracking-tight text-white">YOUR GATI</span>
+            </div>
+
+            <div className="inline-block px-3 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800 text-[11px] font-semibold rounded-full uppercase tracking-wider">
+              Smart India Hackathon 2026
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white leading-snug">
+              Jharkhand State Innovation Platform
+            </h2>
+
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+              A digital ecosystem connecting Citizens, Government, Universities, and Industry partners to solve real-world societal challenges.
+            </p>
+          </div>
+
+          <div className="pt-6 border-t border-slate-800 space-y-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Tagline</span>
+            <p className="text-xs font-semibold text-emerald-400">
+              "Your Problem. Our Universities. One GATI Forward."
+            </p>
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Password</label>
-            <a href="#forgot" onClick={(e) => { e.preventDefault(); showToast('Password reset link sent to your email.', 'info'); }} className="text-[11px] font-semibold text-emerald-600 hover:underline">
-              Forgot Password?
-            </a>
+        {/* RIGHT COLUMN: LOGIN FORM */}
+        <div className="p-8 sm:p-10 bg-white flex flex-col justify-between space-y-6">
+          
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sign In</h1>
+            <p className="text-xs text-slate-500 font-normal">
+              Enter your credentials to access your authenticated portal.
+            </p>
           </div>
-          <div className="relative">
-            <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="password"
-              required
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl pl-9 pr-4 py-3 focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-all"
-            />
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            
+            {/* Email Field */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 block">Email Address</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@organization.com"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700">Password</label>
+                <button
+                  type="button"
+                  onClick={() => showToast('Password reset link sent to registered email.', 'info')}
+                  className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all mt-2"
+            >
+              <span>{loading ? 'Signing in...' : 'SIGN IN'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+          </form>
+
+          {/* QUICK PROTOTYPE LOGIN SHORTCUTS */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+              SIH Presentation Evaluation Shortcuts
+            </span>
+            
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleQuickSelect('citizen@gati.in')}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border text-left truncate transition-colors ${
+                  email === 'citizen@gati.in' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Citizen Portal
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickSelect('admin@gati.in')}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border text-left truncate transition-colors ${
+                  email === 'admin@gati.in' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Govt Admin Portal
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickSelect('university@gati.in')}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border text-left truncate transition-colors ${
+                  email === 'university@gati.in' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                University Portal
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickSelect('industry@gati.in')}
+                className={`px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border text-left truncate transition-colors ${
+                  email === 'industry@gati.in' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Industry Portal
+              </button>
+            </div>
           </div>
+
+          {/* Footer Signup Link */}
+          <div className="text-center pt-2">
+            <span className="text-xs text-slate-500 font-normal">Don't have an account? </span>
+            <button
+              type="button"
+              onClick={onNavigateToSignup}
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+            >
+              Create Account
+            </button>
+          </div>
+
         </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition-all"
-        >
-          <span>{isSubmitting ? 'Authenticating...' : 'LOGIN'}</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-
-        <div className="text-center pt-2">
-          <button
-            type="button"
-            onClick={onNavigateToSignup}
-            className="text-xs text-emerald-700 hover:underline font-bold"
-          >
-            Don't have an account? Create Account
-          </button>
-        </div>
-
-      </form>
-
-      {/* SIH PRESENTATION DEMO SHORTCUTS */}
-      <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold text-slate-200">SIH Judge Presentation Shortcuts</span>
-        </div>
-        <p className="text-[11px] text-slate-400">
-          Click below to log in directly into test accounts linked to the SAME underlying database:
-        </p>
-
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('citizen')}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-xl border border-slate-700 text-left font-bold flex items-center gap-2"
-          >
-            <UserCheck className="w-4 h-4 shrink-0" />
-            <span>Citizen Demo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('university')}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded-xl border border-slate-700 text-left font-bold flex items-center gap-2"
-          >
-            <Building2 className="w-4 h-4 shrink-0" />
-            <span>University Demo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('industry')}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded-xl border border-slate-700 text-left font-bold flex items-center gap-2"
-          >
-            <Layers className="w-4 h-4 shrink-0" />
-            <span>Industry Demo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('admin')}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl border border-slate-700 text-left font-bold flex items-center gap-2"
-          >
-            <Landmark className="w-4 h-4 shrink-0" />
-            <span>Govt Admin Demo</span>
-          </button>
-        </div>
       </div>
 
     </div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import type { 
   UserRole, 
   Challenge, 
@@ -10,19 +10,13 @@ import type {
   JharkhandDistrict, 
   Urgency,
   SupportType,
-  ProjectStatus,
-  Milestone,
-  AIAnalysis
+  ProjectStatus
 } from '../types';
 import { 
-  MOCK_CHALLENGES, 
   MOCK_UNIVERSITIES, 
-  MOCK_INDUSTRY_PARTNERS, 
-  MOCK_PROJECTS, 
-  MOCK_NOTIFICATIONS 
+  MOCK_INDUSTRY_PARTNERS 
 } from '../data/mockData';
-import { analyzeChallengeWithGemini, isGeminiConfigured } from '../lib/geminiVision';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { dataService } from '../lib/dataService';
 
 export type PageView = 
   | 'login'
@@ -91,7 +85,7 @@ interface AppContextType {
   removeToast: (id: string) => void;
   isGeminiActive: boolean;
   
-  // Actions
+  // Actions linked to dataService persistence
   validateChallenge: (challengeId: string) => void;
   assignUniversityToChallenge: (challengeId: string, universityName: string) => void;
   
@@ -134,6 +128,7 @@ interface AppContextType {
   advanceProjectStage: (projectId: string, newStatus: ProjectStatus) => void;
   updateMilestoneProgress: (projectId: string, milestoneId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED', percentage: number) => void;
   markNotificationRead: (id: string) => void;
+  resetPrototypeState: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,34 +138,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activePage, setActivePage] = useState<PageView>('citizen-dashboard');
   const [language, setLanguage] = useState<Language>('en');
   
-  const [challenges, setChallenges] = useState<Challenge[]>(MOCK_CHALLENGES);
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  // Load initial state from local storage data service
+  const [challenges, setChallenges] = useState<Challenge[]>(() => dataService.getChallenges());
+  const [projects, setProjects] = useState<Project[]>(() => dataService.getProjects());
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => dataService.getNotifications());
+  
   const [universities] = useState<University[]>(MOCK_UNIVERSITIES);
   const [industryPartners] = useState<IndustryPartner[]>(MOCK_INDUSTRY_PARTNERS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
   
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(MOCK_CHALLENGES[0]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(MOCK_PROJECTS[0]);
+  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(challenges[0] || null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(projects[0] || null);
   const [pendingChallengeForProject, setPendingChallengeForProject] = useState<Challenge | null>(null);
   
   const [toasts, setToasts] = useState<ToastState[]>([]);
-
-  useEffect(() => {
-    if (isSupabaseConfigured && supabase) {
-      const sb = supabase;
-      const fetchSupabaseData = async () => {
-        try {
-          const { data: dbChallenges } = await sb.from('challenges').select('*');
-          if (dbChallenges && dbChallenges.length > 0) {
-            console.log('Loaded challenges from Supabase:', dbChallenges.length);
-          }
-        } catch (e) {
-          console.warn('Supabase fetch fallback to mock store:', e);
-        }
-      };
-      fetchSupabaseData();
-    }
-  }, []);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
@@ -193,31 +173,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const validateChallenge = (challengeId: string) => {
-    setChallenges(prev => prev.map(ch => {
-      if (ch.id === challengeId) {
-        return {
-          ...ch,
-          status: 'VALIDATED' as any
-        };
-      }
-      return ch;
-    }));
+    const updated = dataService.validateChallenge(challengeId);
+    setChallenges(updated);
     showToast(`Challenge validated by Government Admin and opened for university match.`, 'success');
   };
 
   const assignUniversityToChallenge = (challengeId: string, universityName: string) => {
-    setChallenges(prev => prev.map(ch => {
-      if (ch.id === challengeId) {
-        return {
-          ...ch,
-          status: 'UNIVERSITY_ASSIGNED' as any,
-          assignedUniversity: universityName,
-          universityName
-        };
-      }
-      return ch;
-    }));
-    showToast(`Challenge assigned to ${universityName}! Opportunity sent to institution portal.`, 'success');
+    const updated = dataService.assignUniversity(challengeId, universityName);
+    setChallenges(updated);
+    showToast(`Challenge assigned to ${universityName}! Sent to institution portal.`, 'success');
   };
 
   const submitChallenge = async (data: {
@@ -234,144 +198,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     contactInfo: string;
     evidenceFiles?: { url: string; name: string; type: 'image' | 'video' | 'document'; base64Data?: string }[];
   }): Promise<Challenge> => {
-    const nextNum = challenges.length + 125;
-    const challengeCode = `YG-2026-00${nextNum}`;
-    const newId = `ch-${Date.now()}`;
-
-    const imageEvidence = data.evidenceFiles?.find(f => f.type === 'image' && f.base64Data);
-
-    let aiAnalysis: AIAnalysis;
-    try {
-      aiAnalysis = await analyzeChallengeWithGemini({
-        challengeId: newId,
-        title: data.title,
-        description: data.description,
-        district: data.district,
-        domain: data.domain,
-        urgency: data.urgency,
-        imageBase64: imageEvidence?.base64Data,
-        imageMimeType: 'image/jpeg'
-      });
-    } catch (err) {
-      console.warn('Gemini API call failed, falling back to structured result:', err);
-      showToast('Gemini API request failed. Using structured fallback analysis.', 'warning');
-      aiAnalysis = {
-        id: `ai-fallback-${Date.now()}`,
-        challengeId: newId,
-        modelName: 'gemini-2.5-flash (Fallback)',
-        isLiveGemini: false,
-        problemDetected: true,
-        detectedIssue: data.title,
-        primaryCategory: data.domain,
-        subCategory: 'Infrastructure Inspection',
-        priority: data.urgency,
-        confidenceScore: 90,
-        visibleEvidence: ['Visual inspection pending physical survey'],
-        userReportedContext: data.description,
-        estimatedImpact: `${data.affectedCount.toLocaleString()} Citizens`,
-        recommendedAction: 'Physical engineering inspection recommended.',
-        requiredExpertise: ['Civil Engineering', 'Systems Engineering'],
-        recommendedInstitutions: ['BIT Sindri', 'Ranchi University'],
-        potentialIndustryPartners: ['State Public Works Dept'],
-        summary: 'Standard challenge classification logged in database.'
-      };
-    }
-
-    const newChallenge: Challenge = {
-      id: newId,
-      challengeCode,
-      title: data.title,
-      description: data.description,
-      domain: aiAnalysis.primaryCategory || data.domain,
-      district: data.district,
-      block: data.block,
-      villageCity: data.villageCity,
-      location: data.location,
-      affectedCount: data.affectedCount,
-      urgency: aiAnalysis.priority || data.urgency,
-      expectedSolution: data.expectedSolution,
-      contactInfo: data.contactInfo,
-      status: 'SUBMITTED',
-      evidence: data.evidenceFiles ? data.evidenceFiles.map((f, idx) => ({
-        id: `ev-${idx}-${Date.now()}`,
-        url: f.url,
-        type: f.type,
-        name: f.name,
-        base64Data: f.base64Data
-      })) : [],
-      aiAnalysis,
-      createdAt: new Date().toISOString()
-    };
-
-    setChallenges(prev => [newChallenge, ...prev]);
+    const newChallenge = dataService.submitChallenge(data);
+    setChallenges(dataService.getChallenges());
+    setNotifications(dataService.getNotifications());
     setSelectedChallenge(newChallenge);
 
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.from('challenges').insert([{
-          challenge_code: challengeCode,
-          title: data.title,
-          description: data.description,
-          domain: data.domain,
-          district: data.district,
-          block: data.block,
-          village_city: data.villageCity,
-          location: data.location,
-          affected_count: data.affectedCount,
-          urgency: data.urgency,
-          expected_solution: data.expectedSolution,
-          contact_info: data.contactInfo,
-          status: 'SUBMITTED'
-        }]);
-
-        await supabase.from('challenge_ai_analysis').insert([{
-          challenge_id: newId,
-          model_name: aiAnalysis.modelName,
-          primary_category: aiAnalysis.primaryCategory,
-          priority: aiAnalysis.priority,
-          estimated_impact: aiAnalysis.estimatedImpact,
-          required_expertise: aiAnalysis.requiredExpertise,
-          recommended_institutions: aiAnalysis.recommendedInstitutions,
-          potential_industry_partners: aiAnalysis.potentialIndustryPartners,
-          confidence_score: aiAnalysis.confidenceScore,
-          summary: aiAnalysis.summary
-        }]);
-      } catch (err) {
-        console.error('Supabase write error:', err);
-      }
-    }
-
-    const newNotif: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      role: 'all',
-      title: 'New Community Challenge Submitted',
-      message: `${data.title} (${challengeCode}) in ${data.district}`,
-      link: `/challenges/${newId}`,
-      read: false,
-      createdAt: new Date().toISOString()
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-
-    showToast(`Challenge ${challengeCode} submitted successfully!`, 'success');
+    showToast(`Challenge ${newChallenge.challengeCode} submitted successfully! Saved to data engine.`, 'success');
     return newChallenge;
   };
 
   const acceptChallenge = (challengeId: string, universityName: string) => {
-    setChallenges(prev => prev.map(ch => {
-      if (ch.id === challengeId) {
-        return {
-          ...ch,
-          status: 'UNIVERSITY_ACCEPTED',
-          assignedUniversity: universityName,
-          universityName
-        };
-      }
-      return ch;
-    }));
+    const updated = dataService.acceptChallenge(challengeId, universityName);
+    setChallenges(updated);
 
-    const targetCh = challenges.find(c => c.id === challengeId);
+    const targetCh = updated.find(c => c.id === challengeId);
     if (targetCh) {
-      setPendingChallengeForProject({ ...targetCh, status: 'UNIVERSITY_ACCEPTED', assignedUniversity: universityName });
+      setPendingChallengeForProject(targetCh);
       setActivePage('create-project');
       showToast(`Challenge accepted by ${universityName}. Transitioning to project setup.`, 'success');
     }
@@ -388,96 +230,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     requiredIndustrySupport: SupportType[];
     expectedOutcome: string;
   }): Project => {
-    const targetChallenge = challenges.find(c => c.id === data.challengeId) || selectedChallenge;
-    const uni = universities.find(u => u.name === data.universityName) || universities[0];
-
-    const projId = `proj-${Date.now()}`;
-    const initialMilestones: Milestone[] = [
-      {
-        id: `ms-${Date.now()}-1`,
-        projectId: projId,
-        title: 'Challenge Validated & University Match',
-        description: `Accepted by ${data.universityName} under mentorship of ${data.facultyMentor}.`,
-        targetDate: new Date().toISOString().split('T')[0],
-        status: 'COMPLETED',
-        completionPercentage: 100,
-        updatedAt: new Date().toISOString(),
-        responsibleRole: `${data.universityName} Faculty`
-      },
-      {
-        id: `ms-${Date.now()}-2`,
-        projectId: projId,
-        title: 'Team Formation & Requirements Specification',
-        description: `Student team assembled: ${data.studentTeam.join(', ')}.`,
-        targetDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        status: 'IN_PROGRESS',
-        completionPercentage: 40,
-        updatedAt: new Date().toISOString(),
-        responsibleRole: 'Student Lead'
-      },
-      {
-        id: `ms-${Date.now()}-3`,
-        projectId: projId,
-        title: 'Industry Partner Onboarding',
-        description: `Requesting support for: ${data.requiredIndustrySupport.join(', ')}.`,
-        targetDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-        status: 'PENDING',
-        completionPercentage: 0,
-        updatedAt: new Date().toISOString(),
-        responsibleRole: 'Industry Partner'
-      },
-      {
-        id: `ms-${Date.now()}-4`,
-        projectId: projId,
-        title: 'Prototype Development & Testing',
-        description: 'Building functional MVP prototype.',
-        targetDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-        status: 'PENDING',
-        completionPercentage: 0,
-        updatedAt: new Date().toISOString(),
-        responsibleRole: 'University Innovation Lab'
-      },
-      {
-        id: `ms-${Date.now()}-5`,
-        projectId: projId,
-        title: 'Field Pilot Deployment',
-        description: `Deploying pilot in ${targetChallenge?.district || 'Jharkhand'}.`,
-        targetDate: new Date(Date.now() + 45 * 86400000).toISOString().split('T')[0],
-        status: 'PENDING',
-        completionPercentage: 0,
-        updatedAt: new Date().toISOString(),
-        responsibleRole: 'University + Industry + Govt'
-      }
-    ];
-
-    const newProject: Project = {
-      id: projId,
-      challengeId: data.challengeId,
-      challengeCode: targetChallenge?.challengeCode || 'YG-2026-00100',
-      challengeTitle: targetChallenge?.title || data.title,
-      universityId: uni.id,
-      universityName: uni.name,
-      title: data.title,
-      description: data.description,
-      facultyMentor: data.facultyMentor,
-      studentTeam: data.studentTeam,
-      requiredSkills: data.requiredSkills,
-      requiredIndustrySupport: data.requiredIndustrySupport,
-      expectedOutcome: data.expectedOutcome,
-      status: 'PLANNING',
-      progressPercentage: 20,
-      collaborations: [],
-      milestones: initialMilestones,
-      district: targetChallenge?.district || 'Ranchi',
-      domain: targetChallenge?.domain || 'Water Management',
-      createdAt: new Date().toISOString()
-    };
-
-    setProjects(prev => [newProject, ...prev]);
+    const newProject = dataService.createProject(data);
+    setProjects(dataService.getProjects());
+    setChallenges(dataService.getChallenges());
     setSelectedProject(newProject);
     setPendingChallengeForProject(null);
-
-    setChallenges(prev => prev.map(c => c.id === data.challengeId ? { ...c, status: 'PROJECT_CREATED' } : c));
 
     showToast(`Project "${data.title}" created successfully!`, 'success');
     setActivePage('project-lifecycle');
@@ -490,71 +247,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supportTypes: SupportType[],
     notes: string
   ) => {
-    const partner = industryPartners.find(p => p.name === partnerName) || industryPartners[0];
-    
-    setProjects(prev => prev.map(proj => {
-      if (proj.id === projectId) {
-        const newCollab = {
-          id: `col-${Date.now()}`,
-          projectId,
-          partnerId: partner.id,
-          partnerName: partner.name,
-          supportTypes,
-          status: 'ACCEPTED' as const,
-          notes,
-          createdAt: new Date().toISOString()
-        };
+    const updatedProjects = dataService.collaborateOnProject(projectId, partnerName, supportTypes, notes);
+    setProjects(updatedProjects);
+    setChallenges(dataService.getChallenges());
 
-        const updatedMilestones = proj.milestones.map(m => {
-          if (m.title.includes('Industry Partner Onboarding')) {
-            return {
-              ...m,
-              status: 'COMPLETED' as const,
-              completionPercentage: 100,
-              description: `Partnered with ${partner.name} for ${supportTypes.join(', ')}.`
-            };
-          }
-          return m;
-        });
+    const updatedSelected = updatedProjects.find(p => p.id === projectId);
+    if (updatedSelected) setSelectedProject(updatedSelected);
 
-        const updatedProj = {
-          ...proj,
-          collaborations: [...proj.collaborations, newCollab],
-          milestones: updatedMilestones,
-          status: 'IN_PROGRESS' as const,
-          progressPercentage: 45
-        };
-
-        if (selectedProject?.id === projectId) {
-          setSelectedProject(updatedProj);
-        }
-
-        setChallenges(chPrev => chPrev.map(c => c.id === proj.challengeId ? { ...c, status: 'INDUSTRY_COLLABORATION' } : c));
-
-        return updatedProj;
-      }
-      return proj;
-    }));
-
-    showToast(`Collaboration offer submitted by ${partnerName}!`, 'success');
+    showToast(`Collaboration offer submitted by ${partnerName}! Pledged to project.`, 'success');
   };
 
   const advanceProjectStage = (projectId: string, newStatus: ProjectStatus) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id === projectId) {
-        let progress = proj.progressPercentage;
-        if (newStatus === 'PLANNING' || newStatus === 'planning') progress = 20;
-        else if (newStatus === 'IN_PROGRESS' || newStatus === 'in_progress') progress = 40;
-        else if (newStatus === 'PROTOTYPE' || newStatus === 'prototype') progress = 65;
-        else if (newStatus === 'PILOT_TESTING' || newStatus === 'pilot_testing') progress = 85;
-        else if (newStatus === 'COMPLETED' || newStatus === 'completed') progress = 100;
+    const updatedProjects = dataService.advanceProjectStage(projectId, newStatus);
+    setProjects(updatedProjects);
 
-        const updated = { ...proj, status: newStatus, progressPercentage: progress };
-        if (selectedProject?.id === projectId) setSelectedProject(updated);
-        return updated;
-      }
-      return proj;
-    }));
+    const updatedSelected = updatedProjects.find(p => p.id === projectId);
+    if (updatedSelected) setSelectedProject(updatedSelected);
+
     showToast(`Project stage updated to ${newStatus.toUpperCase().replace('_', ' ')}`, 'info');
   };
 
@@ -578,7 +287,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    const updated = dataService.markNotificationRead(id);
+    setNotifications(updated);
+  };
+
+  const resetPrototypeState = () => {
+    dataService.resetDemoData();
+    setChallenges(dataService.getChallenges());
+    setProjects(dataService.getProjects());
+    setNotifications(dataService.getNotifications());
+    showToast('Prototype demo data reset to default.', 'info');
   };
 
   return (
@@ -603,7 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toasts,
       showToast,
       removeToast,
-      isGeminiActive: isGeminiConfigured,
+      isGeminiActive: false,
       validateChallenge,
       assignUniversityToChallenge,
       submitChallenge,
@@ -612,7 +330,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       collaborateOnProject,
       advanceProjectStage,
       updateMilestoneProgress,
-      markNotificationRead
+      markNotificationRead,
+      resetPrototypeState
     }}>
       {children}
     </AppContext.Provider>
