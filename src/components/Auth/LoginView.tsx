@@ -1,33 +1,49 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
-import { Lock, Mail, ArrowRight } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 interface LoginViewProps {
   onNavigateToSignup: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
-  const { login } = useAuth();
-  const { showToast } = useApp();
+  const { login, isLoading: isAuthLoading } = useAuth();
+  const { showToast, setRole } = useApp();
   
   const [email, setEmail] = useState('citizen@gati.in');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      showToast('Please enter your email and password', 'warning');
+    setErrorMessage(null);
+
+    if (!email.trim() || !password.trim()) {
+      const msg = 'Please enter both email address and password.';
+      setErrorMessage(msg);
+      showToast(msg, 'warning');
       return;
     }
 
     setLoading(true);
     try {
       await login(email, password);
-      showToast('Signed in successfully', 'success');
+      
+      // Determine role from email for instant app navigation sync
+      const lower = email.toLowerCase();
+      if (lower.includes('admin')) setRole('admin');
+      else if (lower.includes('university')) setRole('university');
+      else if (lower.includes('industry')) setRole('industry');
+      else setRole('citizen');
+
+      showToast('Authentication successful! Welcome to YOUR GATI.', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Failed to sign in', 'error');
+      const errText = err?.message || 'Authentication failed. Please check your email and password.';
+      console.error('Login error:', err);
+      setErrorMessage(errText);
+      showToast(errText, 'error');
     } finally {
       setLoading(false);
     }
@@ -36,7 +52,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
   const handleQuickSelect = (roleEmail: string) => {
     setEmail(roleEmail);
     setPassword('password123');
+    setErrorMessage(null);
   };
+
+  const isSubmitting = loading || isAuthLoading;
 
   return (
     <div className="w-full max-w-4xl mx-auto font-sans animate-fade-in p-4 sm:p-6">
@@ -44,7 +63,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
       {/* TWO COLUMN DESKTOP LAYOUT */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-2">
         
-        {/* LEFT COLUMN: BRAND & SIH MISSION */}
+        {/* LEFT COLUMN: BRAND & MISSION */}
         <div className="bg-slate-900 text-white p-8 sm:p-10 flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
@@ -81,9 +100,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
           <div className="space-y-2">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Sign In</h1>
             <p className="text-xs text-slate-500 font-normal">
-              Enter your credentials to access your authenticated portal.
+              Enter your registered Supabase credentials to access your portal.
             </p>
           </div>
+
+          {/* EXPLICIT ERROR BANNER IF AUTH FAILS */}
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-rose-800 animate-fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs font-medium leading-tight">
+                <span className="font-bold block mb-0.5">Authentication Failure</span>
+                {errorMessage}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             
@@ -97,7 +127,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@organization.com"
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal"
+                  disabled={isSubmitting}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal disabled:opacity-60"
                   required
                 />
               </div>
@@ -122,7 +153,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal"
+                  disabled={isSubmitting}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-10 pr-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-normal disabled:opacity-60"
                   required
                 />
               </div>
@@ -131,11 +163,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all mt-2"
+              disabled={isSubmitting}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all mt-2 disabled:opacity-70 cursor-pointer"
             >
-              <span>{loading ? 'Signing in...' : 'SIGN IN'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Authenticating with Supabase...</span>
+                </>
+              ) : (
+                <>
+                  <span>SIGN IN</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
 
           </form>

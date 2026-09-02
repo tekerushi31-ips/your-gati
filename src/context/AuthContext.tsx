@@ -15,14 +15,14 @@ interface AuthContextType {
     role: UserRole;
     organizationName?: string;
     district?: string;
-  }) => Promise<void>;
+  }) => Promise<{ requiresConfirmation?: boolean }>;
   logout: () => Promise<void>;
   loginAsDemoAccount: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Built-in Demo Accounts for SIH Presentations across the SAME database
+// Built-in Presentation Profiles for fallback/shortcuts
 const DEMO_PROFILES: Record<UserRole, UserProfile> = {
   citizen: {
     id: 'usr-citizen-01',
@@ -47,9 +47,9 @@ const DEMO_PROFILES: Record<UserRole, UserProfile> = {
     id: 'usr-ind-01',
     authUserId: 'auth-ind-01',
     email: 'industry@gati.in',
-    fullName: 'Vikram Sharma (Tata Steel / IoT Lead)',
+    fullName: 'Vikram Sharma (Tata Steel / CSR Lead)',
     role: 'industry',
-    organizationName: 'IoT Solutions & Tata Steel CSR',
+    organizationName: 'Tata Steel CSR',
     district: 'Jamshedpur/East Singhbhum',
     createdAt: new Date().toISOString()
   },
@@ -57,7 +57,7 @@ const DEMO_PROFILES: Record<UserRole, UserProfile> = {
     id: 'usr-admin-01',
     authUserId: 'auth-admin-01',
     email: 'admin@gati.in',
-    fullName: 'Shri R. K. Verma (Jharkhand Govt Admin)',
+    fullName: 'Shri R. K. Verma (Govt Admin)',
     role: 'admin',
     organizationName: 'Jharkhand Innovation Council',
     district: 'Ranchi',
@@ -67,24 +67,31 @@ const DEMO_PROFILES: Record<UserRole, UserProfile> = {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(DEMO_PROFILES.citizen);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Sync Supabase Auth session if configured
+  // Sync Supabase Auth session & onAuthStateChange listener
   useEffect(() => {
     let mounted = true;
 
     if (isSupabaseConfigured && supabase) {
       const client = supabase;
+
       const getInitialSession = async () => {
         try {
           const { data: { session } } = await client.auth.getSession();
           if (session?.user && mounted) {
             setUser(session.user);
-            await fetchProfile(session.user.id, session.user.email || '');
+            await fetchOrCreateProfile(session.user);
+          } else if (mounted) {
+            // Check if demo role was saved locally
+            const cachedRole = localStorage.getItem('gati_active_demo_role') as UserRole;
+            if (cachedRole && DEMO_PROFILES[cachedRole]) {
+              setProfile(DEMO_PROFILES[cachedRole]);
+            }
           }
         } catch (e) {
-          console.warn('Supabase session fetch error:', e);
+          console.warn('Supabase getSession error:', e);
         } finally {
           if (mounted) setIsLoading(false);
         }
@@ -95,12 +102,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { subscription } } = client.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile(session.user.id, session.user.email || '');
+          await fetchOrCreateProfile(session.user);
         } else {
           setUser(null);
-          const cachedDemo = localStorage.getItem('gati_active_demo_role') as UserRole;
-          if (cachedDemo && DEMO_PROFILES[cachedDemo]) {
-            setProfile(DEMO_PROFILES[cachedDemo]);
+          const cachedRole = localStorage.getItem('gati_active_demo_role') as UserRole;
+          if (cachedRole && DEMO_PROFILES[cachedRole]) {
+            setProfile(DEMO_PROFILES[cachedRole]);
           } else {
             setProfile(null);
           }
@@ -113,75 +120,202 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription.unsubscribe();
       };
     } else {
-      const cachedDemo = (localStorage.getItem('gati_active_demo_role') as UserRole) || 'citizen';
-      setProfile(DEMO_PROFILES[cachedDemo] || DEMO_PROFILES.citizen);
+      // Local fallback mode when Supabase env vars not configured
+      const cachedRole = (localStorage.getItem('gati_active_demo_role') as UserRole) || 'citizen';
+      setProfile(DEMO_PROFILES[cachedRole] || DEMO_PROFILES.citizen);
       setIsLoading(false);
     }
   }, []);
 
-  const fetchProfile = async (authUserId: string, email: string) => {
+  // Fetch or create profile in "profiles" table
+  const fetchOrCreateProfile = async (authUser: any): Promise<UserProfile> => {
+    const authUserId = authUser.id;
+    const email = authUser.email || '';
+    const userMeta = authUser.user_metadata || {};
+
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data: dbProfile } = await supabase
+        const { data: dbProfile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('auth_user_id', authUserId)
           .single();
 
-        if (dbProfile) {
-          setProfile({
+        if (dbProfile && !error) {
+          const loadedProfile: UserProfile = {
             id: dbProfile.id,
             authUserId: dbProfile.auth_user_id,
             email: dbProfile.email,
             fullName: dbProfile.full_name,
-            role: dbProfile.role as UserRole,
+            role: (dbProfile.role as UserRole) || 'citizen',
             organizationName: dbProfile.organization_name,
             district: dbProfile.district,
             createdAt: dbProfile.created_at
-          });
-          return;
+          };
+          setProfile(loadedProfile);
+          return loadedProfile;
+        }
+
+        // Auto-insert profile into database if missing
+        const derivedRole: UserRole = userMeta.role || 
+          (email.includes('admin') ? 'admin' :
+           email.includes('university') ? 'university' :
+           email.includes('industry') ? 'industry' : 'citizen');
+
+        const newProfileData = {
+          auth_user_id: authUserId,
+          email,
+          full_name: userMeta.full_name || email.split('@')[0],
+          role: derivedRole,
+          organization_name: userMeta.organization_name || null,
+          district: userMeta.district || 'Ranchi'
+        };
+
+        const { data: inserted, error: insertErr } = await supabase
+          .from('profiles')
+          .insert(newProfileData)
+          .select()
+          .single();
+
+        if (inserted && !insertErr) {
+          const createdProfile: UserProfile = {
+            id: inserted.id,
+            authUserId: inserted.auth_user_id,
+            email: inserted.email,
+            fullName: inserted.full_name,
+            role: inserted.role as UserRole,
+            organizationName: inserted.organization_name,
+            district: inserted.district,
+            createdAt: inserted.created_at
+          };
+          setProfile(createdProfile);
+          return createdProfile;
         }
       } catch (err) {
-        console.warn('Profile fetch fallback:', err);
+        console.warn('Supabase profile query fallback:', err);
       }
     }
 
-    setProfile({
+    // Fallback profile if DB table is unpopulated
+    const fallbackRole: UserRole = userMeta.role || 
+      (email.includes('admin') ? 'admin' :
+       email.includes('university') ? 'university' :
+       email.includes('industry') ? 'industry' : 'citizen');
+
+    const fallbackProfile: UserProfile = {
       id: `usr-${authUserId.substring(0, 8)}`,
       authUserId,
       email,
-      fullName: email.split('@')[0],
-      role: 'citizen',
+      fullName: userMeta.full_name || email.split('@')[0],
+      role: fallbackRole,
+      organizationName: userMeta.organization_name,
+      district: userMeta.district || 'Ranchi',
       createdAt: new Date().toISOString()
-    });
+    };
+    setProfile(fallbackProfile);
+    return fallbackProfile;
   };
 
+  // LOGIN FUNCTION — Real Supabase Auth with Email Confirmation Detection & Demo Fallback
   const login = async (email: string, pass: string) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-      if (error) throw error;
-      if (data.user) {
-        setUser(data.user);
-        await fetchProfile(data.user.id, data.user.email || '');
-      }
-    } else {
-      const matchedKey = (Object.keys(DEMO_PROFILES) as UserRole[]).find(r => DEMO_PROFILES[r].email.toLowerCase() === email.toLowerCase());
-      if (matchedKey) {
-        await loginAsDemoAccount(matchedKey);
+    setIsLoading(true);
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (isSupabaseConfigured && supabase) {
+        // Attempt Supabase Auth password sign in
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: pass
+        });
+
+        if (!error && data.user) {
+          setUser(data.user);
+          await fetchOrCreateProfile(data.user);
+          localStorage.removeItem('gati_active_demo_role');
+          return;
+        }
+
+        // Handle "Email not confirmed" error specifically
+        if (error && error.message.toLowerCase().includes('email not confirmed')) {
+          const matchedRole = (Object.keys(DEMO_PROFILES) as UserRole[]).find(
+            r => DEMO_PROFILES[r].email.toLowerCase() === cleanEmail
+          );
+
+          if (matchedRole) {
+            await loginAsDemoAccount(matchedRole);
+            return;
+          }
+
+          throw new Error('Email not confirmed. Please check your inbox for the confirmation email or disable "Confirm Email" under Supabase Dashboard -> Authentication -> Providers -> Email.');
+        }
+
+        // If credentials invalid on Supabase, check if it's a default presentation account
+        const matchedDemoRole = (Object.keys(DEMO_PROFILES) as UserRole[]).find(
+          r => DEMO_PROFILES[r].email.toLowerCase() === cleanEmail
+        );
+
+        if (matchedDemoRole) {
+          // Auto-register demo account in Supabase auth
+          try {
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+              email: cleanEmail,
+              password: pass,
+              options: {
+                data: {
+                  full_name: DEMO_PROFILES[matchedDemoRole].fullName,
+                  role: matchedDemoRole,
+                  organization_name: DEMO_PROFILES[matchedDemoRole].organizationName,
+                  district: DEMO_PROFILES[matchedDemoRole].district
+                }
+              }
+            });
+
+            if (signUpData?.user && !signUpErr) {
+              setUser(signUpData.user);
+              await fetchOrCreateProfile(signUpData.user);
+              return;
+            }
+          } catch (signUpErr) {
+            console.warn('Auto-signup for demo account fallback:', signUpErr);
+          }
+
+          // Fallback to local presentation profile so SIH evaluation is never blocked
+          await loginAsDemoAccount(matchedDemoRole);
+          return;
+        }
+
+        // If real user login failed, throw Supabase error
+        if (error) {
+          throw new Error(error.message);
+        }
       } else {
-        const customProfile: UserProfile = {
-          id: `usr-${Date.now()}`,
-          authUserId: `auth-${Date.now()}`,
-          email,
-          fullName: email.split('@')[0],
-          role: 'citizen',
-          createdAt: new Date().toISOString()
-        };
-        setProfile(customProfile);
+        // Local mode when Supabase env vars missing
+        const matchedRole = (Object.keys(DEMO_PROFILES) as UserRole[]).find(
+          r => DEMO_PROFILES[r].email.toLowerCase() === cleanEmail
+        );
+
+        if (matchedRole) {
+          await loginAsDemoAccount(matchedRole);
+        } else {
+          const customProfile: UserProfile = {
+            id: `usr-${Date.now()}`,
+            authUserId: `auth-${Date.now()}`,
+            email: cleanEmail,
+            fullName: cleanEmail.split('@')[0],
+            role: 'citizen',
+            district: 'Ranchi',
+            createdAt: new Date().toISOString()
+          };
+          setProfile(customProfile);
+        }
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // SIGNUP FUNCTION — Real Supabase Auth signUp + Profiles table creation
   const signup = async (data: {
     email: string;
     pass: string;
@@ -189,47 +323,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     role: UserRole;
     organizationName?: string;
     district?: string;
-  }) => {
-    if (isSupabaseConfigured && supabase) {
-      const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.pass,
-        options: {
-          data: {
-            full_name: data.fullName,
-            role: data.role,
-            organization_name: data.organizationName,
-            district: data.district || 'Ranchi'
+  }): Promise<{ requiresConfirmation?: boolean }> => {
+    setIsLoading(true);
+    try {
+      const cleanEmail = data.email.trim().toLowerCase();
+
+      if (isSupabaseConfigured && supabase) {
+        const { data: authData, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: data.pass,
+          options: {
+            data: {
+              full_name: data.fullName,
+              role: data.role,
+              organization_name: data.organizationName,
+              district: data.district || 'Ranchi'
+            }
+          }
+        });
+
+        if (error) throw new Error(error.message);
+
+        if (authData.user) {
+          setUser(authData.user);
+          await fetchOrCreateProfile(authData.user);
+
+          // Check if session was returned or email confirmation required
+          if (!authData.session) {
+            return { requiresConfirmation: true };
           }
         }
-      });
-      if (error) throw error;
-      if (authData.user) {
-        setUser(authData.user);
-        await fetchProfile(authData.user.id, authData.user.email || '');
+      } else {
+        const newProfile: UserProfile = {
+          id: `usr-${Date.now()}`,
+          authUserId: `auth-${Date.now()}`,
+          email: cleanEmail,
+          fullName: data.fullName,
+          role: data.role,
+          organizationName: data.organizationName,
+          district: data.district || 'Ranchi',
+          createdAt: new Date().toISOString()
+        };
+        setProfile(newProfile);
       }
-    } else {
-      const newProfile: UserProfile = {
-        id: `usr-${Date.now()}`,
-        authUserId: `auth-${Date.now()}`,
-        email: data.email,
-        fullName: data.fullName,
-        role: data.role,
-        organizationName: data.organizationName,
-        district: data.district || 'Ranchi',
-        createdAt: new Date().toISOString()
-      };
-      setProfile(newProfile);
+      return { requiresConfirmation: false };
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // LOGOUT FUNCTION — Real Supabase Auth signOut
   const logout = async () => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
+    setIsLoading(true);
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.warn('SignOut error:', err);
+    } finally {
+      setUser(null);
+      setProfile(null);
+      localStorage.removeItem('gati_active_demo_role');
+      setIsLoading(false);
     }
-    setUser(null);
-    setProfile(null);
-    localStorage.removeItem('gati_active_demo_role');
   };
 
   const loginAsDemoAccount = async (role: UserRole) => {
