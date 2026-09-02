@@ -1,53 +1,62 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Read Supabase environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabasePublishableKey = 
+// Read Supabase environment variables from Vite
+const rawUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const supabasePublishableKey = (
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 
   import.meta.env.VITE_SUPABASE_ANON_KEY || 
-  '';
+  ''
+).trim();
 
+// Format URL safely (supports full URL or raw project reference ID)
+const supabaseUrl = rawUrl
+  ? (rawUrl.startsWith('http://') || rawUrl.startsWith('https://'))
+    ? rawUrl
+    : `https://${rawUrl}.supabase.co`
+  : '';
+
+// Safe configuration detection
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
 
-// Initialize Supabase Client using public publishable key
+// Reusable Supabase client instance (null-safe fallback)
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabasePublishableKey)
   : null;
 
 /**
- * Simple Database Connection Test
- * Performs a ping query against Supabase database.
+ * TASK 5 — Development-only Supabase Connection Test
+ * Performs a lightweight query on the existing "challenges" table.
  */
 export async function testSupabaseConnection(): Promise<{ success: boolean; message: string; data?: any }> {
   if (!isSupabaseConfigured || !supabase) {
-    const msg = 'Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY) are not configured yet.';
-    console.info('ℹ️ Supabase Connection Test:', msg);
+    const msg = 'Supabase connection failed: Environment variables VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are missing or empty.';
+    console.info('ℹ️ Supabase Connection Check:', msg);
     return { success: false, message: msg };
   }
 
   try {
-    // Perform simple ping query on challenges table or rpc
+    // Lightweight query on the existing "challenges" table from schema
     const { data, error } = await supabase.from('challenges').select('id').limit(1);
 
     if (error) {
-      const errorMsg = `Supabase Connection Error: ${error.message}`;
-      console.warn('⚠️ Supabase Connection Test Result:', errorMsg);
+      const errorMsg = `Supabase connection failed: ${error.message}`;
+      console.warn('⚠️ Supabase Connection Result:', errorMsg);
       return { success: false, message: errorMsg };
     }
 
-    const successMsg = 'Successfully connected to Supabase database!';
-    console.log('✅ Supabase Connection Test Result:', successMsg, 'Records found:', data?.length || 0);
+    const successMsg = 'Supabase connection successful.';
+    console.log('✅ Supabase Connection Result:', successMsg, `Query returned ${data?.length || 0} records.`);
     return { success: true, message: successMsg, data };
   } catch (err: any) {
-    const catchMsg = `Unexpected connection error: ${err?.message || String(err)}`;
-    console.error('❌ Supabase Connection Test Exception:', catchMsg);
+    const catchMsg = `Supabase connection failed: ${err?.message || String(err)}`;
+    console.error('❌ Supabase Connection Exception:', catchMsg);
     return { success: false, message: catchMsg };
   }
 }
 
-// Automatically log connection status on module import
+// Automatically execute connection test if configured
 if (isSupabaseConfigured) {
   testSupabaseConnection();
 } else {
-  console.info('ℹ️ YOUR GATI: Running in Local Prototype mode (Add VITE_SUPABASE_URL & VITE_SUPABASE_PUBLISHABLE_KEY to .env.local for live Supabase DB).');
+  console.info('ℹ️ YOUR GATI: Running in local prototype mode. (Add VITE_SUPABASE_URL & VITE_SUPABASE_PUBLISHABLE_KEY to .env.local to enable live Supabase DB).');
 }
