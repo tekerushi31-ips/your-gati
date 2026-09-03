@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
-import { Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import type { UserRole } from '../../types';
 
 interface LoginViewProps {
   onNavigateToSignup: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
-  const { login, isLoading: isAuthLoading } = useAuth();
+  const { login, loginAsDemoAccount, isLoading: isAuthLoading } = useAuth();
   const { showToast, setRole } = useApp();
   
   const [email, setEmail] = useState('citizen@gati.in');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isEmailUnconfirmed = errorMessage?.toLowerCase().includes('email not confirmed');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,10 +52,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
     }
   };
 
-  const handleQuickSelect = (roleEmail: string) => {
+  const handleQuickSelect = async (roleEmail: string) => {
     setEmail(roleEmail);
     setPassword('password123');
     setErrorMessage(null);
+
+    // Determine role from email
+    const lower = roleEmail.toLowerCase();
+    const targetRole: UserRole = lower.includes('admin') ? 'admin' :
+                       lower.includes('university') ? 'university' :
+                       lower.includes('industry') ? 'industry' : 'citizen';
+
+    try {
+      await loginAsDemoAccount(targetRole);
+      setRole(targetRole);
+      showToast(`Logged in as Demo ${targetRole.toUpperCase()} Account!`, 'success');
+    } catch (e) {
+      console.warn('Demo login notice:', e);
+    }
   };
 
   const isSubmitting = loading || isAuthLoading;
@@ -106,12 +123,40 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
 
           {/* EXPLICIT ERROR BANNER IF AUTH FAILS */}
           {errorMessage && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-rose-800 animate-fade-in">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="text-xs font-medium leading-tight">
-                <span className="font-bold block mb-0.5">Authentication Failure</span>
-                {errorMessage}
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3 text-rose-900 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-xs font-medium leading-relaxed">
+                  <span className="font-bold block text-sm">Authentication Notice</span>
+                  <p className="mt-0.5">{errorMessage}</p>
+                </div>
               </div>
+
+              {/* Instant Demo Account Fallback when Email is Unconfirmed */}
+              {isEmailUnconfirmed && (
+                <div className="pt-2 border-t border-rose-200/80 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Skip Email Verification & Access Demo Account:</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSelect('citizen@gati.in')}
+                      className="p-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-xs transition-colors"
+                    >
+                      Citizen Account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSelect('admin@gati.in')}
+                      className="p-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg shadow-xs transition-colors"
+                    >
+                      Admin Account
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -184,7 +229,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onNavigateToSignup }) => {
           {/* QUICK PROTOTYPE LOGIN SHORTCUTS */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-              SIH Presentation Evaluation Shortcuts
+              Instant Presentation Access (1-Click Login)
             </span>
             
             <div className="grid grid-cols-2 gap-1.5">
