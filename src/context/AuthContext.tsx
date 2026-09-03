@@ -281,7 +281,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         });
 
-        if (error) throw new Error(error.message);
+        if (error) {
+          const msg = error.message.toLowerCase();
+          if (msg.includes('rate limit') || msg.includes('email_send_rate_limit')) {
+            throw new Error('Supabase Email Rate Limit Exceeded: Supabase default SMTP limits verification emails. You can sign in using an Instant Demo Account or disable "Confirm Email" in your Supabase Dashboard (Auth -> Email).');
+          }
+          throw new Error(error.message);
+        }
 
         if (authData.user) {
           setUser(authData.user);

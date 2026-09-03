@@ -14,11 +14,12 @@ import {
   Layers, 
   Landmark,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 
 export const SignupView: React.FC<{ onNavigateToLogin: () => void }> = ({ onNavigateToLogin }) => {
-  const { signup } = useAuth();
+  const { signup, loginAsDemoAccount } = useAuth();
   const { showToast, setActivePage, setRole } = useApp();
 
   const [fullName, setFullName] = useState('');
@@ -29,11 +30,13 @@ export const SignupView: React.FC<{ onNavigateToLogin: () => void }> = ({ onNavi
   const [district, setDistrict] = useState<JharkhandDistrict>('Ranchi');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setIsRateLimited(false);
     setSuccessMessage(null);
 
     if (!fullName || !email || !password) {
@@ -69,10 +72,26 @@ export const SignupView: React.FC<{ onNavigateToLogin: () => void }> = ({ onNavi
       const errText = err?.message || 'Registration failed. Please try again.';
       console.error('Signup error:', errText);
       setErrorMessage(errText);
+
+      if (errText.toLowerCase().includes('rate limit')) {
+        setIsRateLimited(true);
+      }
+
       showToast(errText, 'error');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleDemoAccess = async (targetRole: UserRole) => {
+    await loginAsDemoAccount(targetRole);
+    setRole(targetRole);
+    showToast(`Logged in as Demo ${targetRole.toUpperCase()} Account!`, 'success');
+    setActivePage(
+      targetRole === 'admin' ? 'admin-dashboard' :
+      targetRole === 'university' ? 'university-dashboard' :
+      targetRole === 'industry' ? 'industry-dashboard' : 'citizen-dashboard'
+    );
   };
 
   const roleConfigs: Record<UserRole, { label: string; icon: any; desc: string }> = {
@@ -108,14 +127,56 @@ export const SignupView: React.FC<{ onNavigateToLogin: () => void }> = ({ onNavi
 
       <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
         
-        {/* Error Banner */}
+        {/* Error & Rate Limit Banner */}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-rose-800 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div className="text-xs font-medium leading-tight">
-              <span className="font-bold block mb-0.5">Registration Failure</span>
-              {errorMessage}
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3 text-rose-900 animate-fade-in">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs font-medium leading-relaxed">
+                <span className="font-extrabold text-rose-950 block text-sm">Registration Rate Limit Warning</span>
+                <p className="mt-0.5">{errorMessage}</p>
+              </div>
             </div>
+
+            {/* 1-Click Instant Demo Login Fallback */}
+            {isRateLimited && (
+              <div className="pt-2 border-t border-rose-200/80 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>Bypass Rate Limit with Instant Demo Access:</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleDemoAccess('citizen')}
+                    className="p-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-xs transition-colors"
+                  >
+                    Citizen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDemoAccess('admin')}
+                    className="p-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg shadow-xs transition-colors"
+                  >
+                    Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDemoAccess('university')}
+                    className="p-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xs transition-colors"
+                  >
+                    University
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDemoAccess('industry')}
+                    className="p-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow-xs transition-colors"
+                  >
+                    Industry
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
