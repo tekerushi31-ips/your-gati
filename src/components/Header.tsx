@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { dataService } from '../lib/dataService';
 import type { UserRole } from '../types';
 import { 
   Bell, 
@@ -11,8 +12,21 @@ import {
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { activePage, language, setLanguage, notifications, markNotificationRead } = useApp();
+  const { 
+    activePage, 
+    setActivePage, 
+    language, 
+    setLanguage, 
+    notifications, 
+    markNotificationRead,
+    setSelectedChallenge,
+    setSelectedProject,
+    showToast
+  } = useApp();
+
   const { profile, logout } = useAuth();
+  
+  const [headerSearch, setHeaderSearch] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
 
@@ -31,17 +45,18 @@ export const Header: React.FC = () => {
       case 'citizen-challenges': return 'My Challenges';
       case 'citizen-track': return 'Track Challenge';
       case 'citizen-report': return 'Report Challenge';
-      case 'citizen-nearby': return 'Jharkhand Map';
-      case 'admin-dashboard': return 'Dashboard';
+      case 'citizen-nearby': return 'Jharkhand Telemetry Map';
+      case 'admin-dashboard': return 'State Command Dashboard';
       case 'admin-pending': return 'Validation Workspace';
       case 'admin-universities': return 'University Control';
       case 'admin-industry': return 'Industry Collaborations';
       case 'admin-map': return 'District Telemetry Map';
       case 'admin-analytics': return 'State Analytics';
-      case 'university-dashboard': return 'Dashboard';
+      case 'university-dashboard': return 'University Innovation Hub';
       case 'create-project': return 'Create Project';
-      case 'industry-dashboard': return 'Dashboard';
-      case 'project-lifecycle': return 'Project Lifecycle';
+      case 'industry-dashboard': return 'Corporate CSR Hub';
+      case 'project-lifecycle': return 'Project Lifecycle Tracker';
+      case 'help-support': return 'Help & Support Portal';
       default: return 'Dashboard';
     }
   };
@@ -51,8 +66,54 @@ export const Header: React.FC = () => {
     if (profile.role === 'citizen') return `${profile.district || 'Palamu'} District`;
     if (profile.role === 'admin') return profile.organizationName || 'Public Works Dept';
     if (profile.role === 'university') return profile.organizationName || 'BIT Sindri';
-    if (profile.role === 'industry') return profile.organizationName || 'Tata Steel';
+    if (profile.role === 'industry') return profile.organizationName || 'Tata Steel CSR';
     return 'Jharkhand';
+  };
+
+  const handleGlobalSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!headerSearch.trim()) return;
+
+    const term = headerSearch.trim();
+    showToast(`Searching for "${term}" across Supabase database...`, 'info');
+
+    const matchedChallenge = await dataService.getChallengeByCode(term);
+    if (matchedChallenge) {
+      setSelectedChallenge(matchedChallenge);
+      setActivePage(profile?.role === 'admin' ? 'admin-pending' : 'citizen-track');
+      setHeaderSearch('');
+      showToast(`Found challenge ${matchedChallenge.challengeCode}`, 'success');
+      return;
+    }
+
+    showToast(`No challenge found matching code "${term}".`, 'warning');
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    await markNotificationRead(n.id);
+    setShowNotifications(false);
+
+    if (n.relatedChallengeId) {
+      const challenges = await dataService.getChallenges();
+      const match = challenges.find(c => c.id === n.relatedChallengeId);
+      if (match) {
+        setSelectedChallenge(match);
+        setActivePage(profile?.role === 'admin' ? 'admin-pending' : 'citizen-track');
+        return;
+      }
+    }
+
+    if (n.relatedProjectId) {
+      const projects = await dataService.getProjects();
+      const match = projects.find(p => p.id === n.relatedProjectId);
+      if (match) {
+        setSelectedProject(match);
+        setActivePage('project-lifecycle');
+        return;
+      }
+    }
+
+    setActivePage(profile?.role === 'admin' ? 'admin-dashboard' : 'citizen-dashboard');
   };
 
   return (
@@ -60,28 +121,32 @@ export const Header: React.FC = () => {
       
       {/* LEFT: Page Title */}
       <div className="flex items-center gap-3">
-        <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+        <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
           {getPageTitle(activePage)}
         </h1>
       </div>
 
-      {/* CENTER: Compact Search Bar */}
-      <div className="hidden md:flex items-center flex-1 max-w-md mx-6 relative">
+      {/* CENTER: Functional Search Bar */}
+      <form onSubmit={handleGlobalSearch} className="hidden md:flex items-center flex-1 max-w-md mx-6 relative">
         <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
-          placeholder="Search challenges by code or keyword..."
-          className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-lg pl-9 pr-4 py-2 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all"
+          value={headerSearch}
+          onChange={(e) => setHeaderSearch(e.target.value)}
+          aria-label="Global search by challenge code"
+          placeholder="Search by code (e.g. YG-2026-00101) & press Enter..."
+          className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl pl-9 pr-4 py-2 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition-all font-medium"
         />
-      </div>
+      </form>
 
-      {/* RIGHT: Controls & Compact Profile */}
+      {/* RIGHT: Controls & Profile */}
       <div className="flex items-center gap-3">
         
         {/* Language Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowLangMenu(!showLangMenu)}
+            aria-label="Select language"
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
           >
             <Globe className="w-3.5 h-3.5 text-slate-500" />
@@ -117,6 +182,7 @@ export const Header: React.FC = () => {
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
+            aria-label="View notifications"
             className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 transition-colors relative"
           >
             <Bell className="w-4 h-4" />
@@ -132,11 +198,11 @@ export const Header: React.FC = () => {
                 <span className="text-[10px] font-semibold text-emerald-700">{unreadCount} Unread</span>
               </div>
               <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                {notifications.slice(0, 4).map(n => (
+                {notifications.slice(0, 5).map(n => (
                   <div
                     key={n.id}
-                    onClick={() => markNotificationRead(n.id)}
-                    className={`p-2 rounded-lg text-xs cursor-pointer ${n.read ? 'bg-slate-50 text-slate-600' : 'bg-emerald-50/70 text-slate-900 font-medium'}`}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`p-2 rounded-lg text-xs cursor-pointer hover:bg-emerald-50 transition-colors ${n.read ? 'bg-slate-50 text-slate-600' : 'bg-emerald-50/70 text-slate-900 font-medium'}`}
                   >
                     <p className="font-bold text-[11px]">{n.title}</p>
                     <p className="text-[10px] text-slate-500 truncate">{n.message}</p>
@@ -149,7 +215,7 @@ export const Header: React.FC = () => {
 
         <div className="h-5 w-px bg-slate-200"></div>
 
-        {/* Compact User Identity */}
+        {/* Compact User Profile */}
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center justify-center">
             {profile?.fullName ? profile.fullName.charAt(0) : 'U'}
@@ -171,6 +237,7 @@ export const Header: React.FC = () => {
 
           <button
             onClick={logout}
+            aria-label="Logout"
             title="Logout"
             className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors ml-1"
           >

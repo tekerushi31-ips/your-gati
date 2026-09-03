@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { StatusBadge } from '../Common/StatusBadge';
 import { 
   Clock, 
   MapPin, 
@@ -18,7 +19,7 @@ export const CitizenChallengesList: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto font-sans">
       
       {/* Header Banner */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -78,12 +79,10 @@ export const CitizenChallengesList: React.FC = () => {
                     ch.urgency === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
                     ch.urgency === 'HIGH' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
                   }`}>
-                    AI Severity: {ch.urgency}
+                    Urgency: {ch.urgency}
                   </span>
 
-                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200">
-                    Status: {ch.status}
-                  </span>
+                  <StatusBadge status={ch.status} />
                 </div>
               </div>
 

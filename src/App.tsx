@@ -8,6 +8,7 @@ import { CitizenSubmission } from './components/CitizenSubmission';
 import { AIAnalysisView } from './components/AIAnalysisView';
 import { ProjectCreationForm } from './components/ProjectCreationForm';
 import { ProjectLifecycleView } from './components/ProjectLifecycleView';
+import { HelpSupportView } from './components/HelpSupportView';
 import { LoginView } from './components/Auth/LoginView';
 import { SignupView } from './components/Auth/SignupView';
 import { CitizenDashboardView } from './components/Citizen/CitizenDashboardView';
@@ -51,20 +52,23 @@ const MainContent: React.FC = () => {
       'citizen-profile', 
       'citizen-settings', 
       'nearby-issues',
-      'ai-analysis'
+      'ai-analysis',
+      'help-support'
     ],
     university: [
       'university-dashboard', 
       'create-project', 
       'industry-dashboard', 
       'project-lifecycle', 
-      'ai-analysis'
+      'ai-analysis',
+      'help-support'
     ],
     industry: [
       'industry-dashboard', 
       'project-lifecycle', 
       'university-dashboard', 
-      'ai-analysis'
+      'ai-analysis',
+      'help-support'
     ],
     admin: [
       'admin-dashboard',
@@ -85,7 +89,8 @@ const MainContent: React.FC = () => {
       'university-dashboard',
       'industry-dashboard',
       'project-lifecycle',
-      'ai-analysis'
+      'ai-analysis',
+      'help-support'
     ]
   };
 
@@ -99,13 +104,13 @@ const MainContent: React.FC = () => {
   // Route Protection Guard
   useEffect(() => {
     if (isAuthenticated && profile) {
-      const allowed = allowedPagesByRole[currentRole];
+      const allowed = allowedPagesByRole[currentRole] || [];
       if (!allowed.includes(activePage)) {
         showToast('Access Restricted: You do not have permission to access this workspace.', 'error');
         setActivePage(defaultRoleDashboard[currentRole]);
       }
     }
-  }, [isAuthenticated, profile, currentRole, activePage]);
+  }, [isAuthenticated, profile, currentRole, activePage, setActivePage, showToast]);
 
   // Logged-out Screen -> Login / Signup Screen
   if (!isAuthenticated) {
@@ -172,11 +177,13 @@ const MainContent: React.FC = () => {
       case 'industry-dashboard':
         return <IndustryDashboardView />;
 
-      // Lifecycle View
+      // Lifecycle & Help Views
       case 'project-lifecycle':
         return <ProjectLifecycleView />;
       case 'ai-analysis':
         return <AIAnalysisView />;
+      case 'help-support':
+        return <HelpSupportView />;
       
       default:
         return currentRole === 'admin' ? <AdminDashboardView /> :

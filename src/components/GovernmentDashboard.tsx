@@ -1,17 +1,17 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { StatusBadge } from './Common/StatusBadge';
 
 export const GovernmentDashboard: React.FC = () => {
   const { challenges, projects, universities, industryPartners } = useApp();
 
-  // Compute real database metrics
   const totalChallenges = challenges.length;
   const acceptedChallenges = challenges.filter(c => c.status !== 'SUBMITTED' && c.status !== 'VALIDATED').length;
   const totalProjects = projects.length;
   const partneredProjects = projects.filter(p => p.collaborations.length > 0).length;
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto font-sans">
       
       {/* Header Banner */}
       <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -34,7 +34,7 @@ export const GovernmentDashboard: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Challenges Logged</span>
           <p className="text-3xl font-black text-slate-900 font-mono mt-1">{totalChallenges}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold block mt-1">100% Real DB Queries</span>
+          <span className="text-[10px] text-emerald-600 font-semibold block mt-1">Synced with Supabase DB</span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -67,7 +67,7 @@ export const GovernmentDashboard: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[720px]">
             <thead className="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] border-b border-slate-200">
               <tr>
                 <th className="p-3">Ref Code</th>
@@ -85,9 +85,7 @@ export const GovernmentDashboard: React.FC = () => {
                   <td className="p-3 text-slate-700">{ch.district}</td>
                   <td className="p-3 text-slate-700">{ch.domain}</td>
                   <td className="p-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                      {ch.status}
-                    </span>
+                    <StatusBadge status={ch.status} />
                   </td>
                 </tr>
               ))}

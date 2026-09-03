@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { JHARKHAND_DISTRICTS, DOMAINS } from '../../data/mockData';
+import { StatusBadge } from '../Common/StatusBadge';
 import { 
   PlusCircle, 
   ArrowRight,
@@ -52,7 +53,7 @@ export const AdminDashboardView: React.FC = () => {
       {/* Operational Page Title */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -63,7 +64,7 @@ export const AdminDashboardView: React.FC = () => {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleExportReport}
-            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg border border-slate-300 shadow-2xs flex items-center gap-1.5 transition-all"
+            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-extrabold text-xs rounded-xl border border-slate-300 shadow-2xs flex items-center gap-1.5 transition-all"
           >
             <FileSpreadsheet className="w-4 h-4 text-slate-500" />
             <span>Export Report</span>
@@ -71,7 +72,7 @@ export const AdminDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActivePage('citizen-report')}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-2xs flex items-center gap-2 transition-all"
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all"
           >
             <PlusCircle className="w-4 h-4" />
             <span>+ NEW CHALLENGE</span>
@@ -85,7 +86,7 @@ export const AdminDashboardView: React.FC = () => {
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1">
           <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">TOTAL CHALLENGES</span>
           <p className="text-2xl font-bold text-slate-900 font-mono">{totalCount}</p>
-          <span className="text-[11px] text-slate-500 font-medium">Logged in DB</span>
+          <span className="text-[11px] text-slate-500 font-medium">Synced in DB</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-1">
@@ -132,7 +133,7 @@ export const AdminDashboardView: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-3">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Societal Challenge Registry</h2>
-            <p className="text-xs text-slate-500">Database of public challenges submitted across Jharkhand.</p>
+            <p className="text-xs text-slate-500">Live database of public challenges submitted across Jharkhand.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -140,6 +141,8 @@ export const AdminDashboardView: React.FC = () => {
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
+                id="admin-search-input"
+                aria-label="Filter challenges by title or code"
                 placeholder="Search code or title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -148,6 +151,8 @@ export const AdminDashboardView: React.FC = () => {
             </div>
 
             <select
+              id="admin-district-filter"
+              aria-label="Filter by district"
               value={selectedDistrict}
               onChange={(e) => setSelectedDistrict(e.target.value)}
               className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none"
@@ -159,6 +164,8 @@ export const AdminDashboardView: React.FC = () => {
             </select>
 
             <select
+              id="admin-domain-filter"
+              aria-label="Filter by domain"
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value)}
               className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none"
@@ -170,6 +177,8 @@ export const AdminDashboardView: React.FC = () => {
             </select>
 
             <select
+              id="admin-severity-filter"
+              aria-label="Filter by severity"
               value={selectedSeverity}
               onChange={(e) => setSelectedSeverity(e.target.value)}
               className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none"
@@ -184,7 +193,7 @@ export const AdminDashboardView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-medium">
+          <table className="w-full text-left text-xs font-medium min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider font-bold text-slate-500">
                 <th className="py-3 px-4">Challenge ID</th>
@@ -224,9 +233,7 @@ export const AdminDashboardView: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          {ch.status}
-                        </span>
+                        <StatusBadge status={ch.status} />
                       </td>
                       <td className="py-3.5 px-4 text-slate-800 font-semibold">{assignedUni}</td>
                       <td className="py-3.5 px-4 text-right">
@@ -235,7 +242,7 @@ export const AdminDashboardView: React.FC = () => {
                             setSelectedChallenge(ch);
                             setActivePage('admin-pending');
                           }}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-2xs inline-flex items-center gap-1 transition-all"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-2xs inline-flex items-center gap-1 transition-all"
                         >
                           <span>View</span>
                           <ArrowRight className="w-3.5 h-3.5" />

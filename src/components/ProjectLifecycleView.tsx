@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { StatusBadge } from './Common/StatusBadge';
 import { 
   GitBranch, 
   CheckCircle2, 
@@ -23,12 +24,11 @@ export const ProjectLifecycleView: React.FC = () => {
 
   const isUniversityUser = profile?.role === 'university' || profile?.role === 'admin';
 
-  // Derive Lifecycle Stages strictly from database records
   const stages = [
-    { title: 'Submitted', done: true, desc: 'Logged in database' },
+    { title: 'Submitted', done: true, desc: 'Logged in Supabase' },
     { title: 'University Accepted', done: true, desc: proj.universityName },
     { title: 'Project Created', done: true, desc: proj.title },
-    { title: 'Industry Partner', done: proj.collaborations.length > 0, desc: proj.collaborations[0]?.partnerName || 'Pending Partner' },
+    { title: 'Industry Partner', done: Boolean(proj.collaborations && proj.collaborations.length > 0), desc: proj.collaborations?.[0]?.partnerName || 'Pending Partner' },
     { title: 'Prototype', done: proj.progressPercentage >= 60, desc: 'Functional MVP' },
     { title: 'Pilot Testing', done: proj.progressPercentage >= 85, desc: 'Field Validation' },
     { title: 'Deployed', done: proj.progressPercentage === 100, desc: 'Public Utility' }
@@ -42,18 +42,16 @@ export const ProjectLifecycleView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto font-sans">
       
       {/* Header Banner */}
       <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-xl space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <GitBranch className="w-5 h-5 text-emerald-400" />
-            <span className="text-xs font-bold text-emerald-400 font-mono">DATABASE-DRIVEN LIFECYCLE TRACKER</span>
+            <span className="text-xs font-bold text-emerald-400 font-mono">SUPABASE-SYNCHRONIZED LIFECYCLE TRACKER</span>
           </div>
-          <span className="px-3 py-1 bg-blue-500/20 text-blue-300 text-xs font-bold font-mono rounded-full border border-blue-500/40">
-            Stage: {proj.status}
-          </span>
+          <StatusBadge status={proj.status} />
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-black text-white">{proj.title}</h1>
@@ -85,7 +83,7 @@ export const ProjectLifecycleView: React.FC = () => {
           <div>
             <h3 className="text-lg font-black text-slate-900">Project Execution Milestones</h3>
             <p className="text-xs text-slate-500">
-              {isUniversityUser ? 'Click milestone checkbox to update real database progress.' : 'Real-time view of university milestone completions.'}
+              {isUniversityUser ? 'Click milestone to update real Supabase database progress.' : 'Real-time view of university milestone completions.'}
             </p>
           </div>
           <div className="text-right font-mono">

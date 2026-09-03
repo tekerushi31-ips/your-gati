@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { StatusBadge } from '../Common/StatusBadge';
 import { 
   PlusCircle, 
   ArrowRight
@@ -30,7 +31,7 @@ export const CitizenDashboardView: React.FC = () => {
       {/* Page Title & Operational Header */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -40,7 +41,7 @@ export const CitizenDashboardView: React.FC = () => {
 
         <button
           onClick={() => setActivePage('citizen-report')}
-          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg shadow-xs flex items-center gap-2 transition-all shrink-0"
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all shrink-0"
         >
           <PlusCircle className="w-4 h-4" />
           <span>+ REPORT CHALLENGE</span>
@@ -53,7 +54,7 @@ export const CitizenDashboardView: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
           <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider block">TOTAL CHALLENGES</span>
           <p className="text-3xl font-bold text-slate-900 font-mono">{totalCount}</p>
-          <span className="text-xs text-slate-500 font-medium">Logged in DB</span>
+          <span className="text-xs text-slate-500 font-medium">Synced with DB</span>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-1">
@@ -86,7 +87,7 @@ export const CitizenDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActivePage('citizen-challenges')}
-            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
+            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
           >
             <span>View All</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -94,7 +95,7 @@ export const CitizenDashboardView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-medium">
+          <table className="w-full text-left text-xs font-medium min-w-[720px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wider font-bold text-slate-500">
                 <th className="py-3 px-4">Challenge ID</th>
@@ -122,9 +123,7 @@ export const CitizenDashboardView: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-3.5 px-4">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      {ch.status}
-                    </span>
+                    <StatusBadge status={ch.status} />
                   </td>
                   <td className="py-3.5 px-4 text-right">
                     <button
@@ -132,7 +131,7 @@ export const CitizenDashboardView: React.FC = () => {
                         setSelectedChallenge(ch);
                         setActivePage('citizen-track');
                       }}
-                      className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 font-semibold text-xs rounded-lg border border-slate-300 shadow-2xs inline-flex items-center gap-1 transition-all"
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs rounded-xl border border-slate-300 shadow-2xs inline-flex items-center gap-1 transition-all"
                     >
                       <span>View</span>
                       <ArrowRight className="w-3.5 h-3.5 text-slate-400" />

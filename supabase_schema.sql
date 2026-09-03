@@ -217,6 +217,7 @@ ALTER TABLE project_milestones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow public read access on profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = auth_user_id);
 CREATE POLICY "Allow authenticated update own profile" ON profiles FOR UPDATE USING (auth.uid() = auth_user_id);
 
 CREATE POLICY "Allow public read challenges" ON challenges FOR SELECT USING (true);

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { StatusBadge } from '../Common/StatusBadge';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -12,6 +13,7 @@ import {
 
 export const AdminValidationView: React.FC = () => {
   const { selectedChallenge, challenges, validateChallenge, assignUniversityToChallenge, setActivePage, showToast } = useApp();
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const challenge = selectedChallenge || challenges.find(c => c.status === 'SUBMITTED' || c.status === 'UNDER_REVIEW') || challenges[0];
 
@@ -31,12 +33,22 @@ export const AdminValidationView: React.FC = () => {
 
   const ai = challenge.aiAnalysis;
 
-  const handleValidate = () => {
-    validateChallenge(challenge.id);
+  const handleValidate = async () => {
+    setIsProcessing(true);
+    try {
+      await validateChallenge(challenge.id);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleAssignBIT = () => {
-    assignUniversityToChallenge(challenge.id, 'BIT Sindri');
+  const handleAssignBIT = async () => {
+    setIsProcessing(true);
+    try {
+      await assignUniversityToChallenge(challenge.id, 'BIT Sindri');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleReject = () => {
@@ -44,7 +56,7 @@ export const AdminValidationView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto font-sans">
       
       {/* Back Navigation */}
       <button
@@ -63,9 +75,7 @@ export const AdminValidationView: React.FC = () => {
             <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">GOVERNMENT VALIDATION WORKSPACE</span>
           </div>
 
-          <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-mono font-extrabold rounded-full border border-amber-300 uppercase">
-            STATUS: {challenge.status}
-          </span>
+          <StatusBadge status={challenge.status} />
         </div>
 
         <div>
@@ -114,15 +124,26 @@ export const AdminValidationView: React.FC = () => {
               <p className="text-slate-700 font-medium mt-0.5">{challenge.expectedSolution || 'Public engineering repair required.'}</p>
             </div>
 
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Info</span>
+              <p className="text-slate-700 font-mono text-[11px] mt-0.5">{challenge.contactInfo || 'Provided during submission'}</p>
+            </div>
+
             {/* Evidence Image */}
             {challenge.evidence && challenge.evidence.length > 0 && (
               <div className="space-y-1.5 pt-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Uploaded Photo Evidence</span>
-                <img 
-                  src={challenge.evidence[0].url} 
-                  alt="Citizen Evidence" 
-                  className="w-full h-48 object-cover rounded-xl border border-slate-300 shadow-xs" 
-                />
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Uploaded Evidence ({challenge.evidence[0].type})</span>
+                {challenge.evidence[0].type === 'image' ? (
+                  <img 
+                    src={challenge.evidence[0].url} 
+                    alt="Citizen Evidence" 
+                    className="w-full h-48 object-cover rounded-xl border border-slate-300 shadow-xs" 
+                  />
+                ) : (
+                  <a href={challenge.evidence[0].url} target="_blank" rel="noreferrer" className="block p-3 bg-slate-100 rounded-xl text-blue-600 font-bold hover:underline">
+                    📄 View Evidence File ({challenge.evidence[0].name})
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -206,21 +227,23 @@ export const AdminValidationView: React.FC = () => {
         <div>
           <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-900">Government Validation & Routing Decision</h3>
           <p className="text-xs text-slate-500">
-            Official government action to validate the challenge and route it to suitable academic institutions.
+            Official government action to validate the challenge and route it to suitable academic institutions in Supabase.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleValidate}
+            disabled={isProcessing}
             className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>VALIDATE CHALLENGE</span>
+            <span>{isProcessing ? 'Updating Supabase...' : 'VALIDATE CHALLENGE'}</span>
           </button>
 
           <button
             onClick={handleAssignBIT}
+            disabled={isProcessing}
             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all"
           >
             <Building2 className="w-4 h-4" />
@@ -229,6 +252,7 @@ export const AdminValidationView: React.FC = () => {
 
           <button
             onClick={handleReject}
+            disabled={isProcessing}
             className="px-5 py-3 bg-white hover:bg-rose-50 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-colors flex items-center gap-1.5"
           >
             <XCircle className="w-4 h-4 text-rose-600" />

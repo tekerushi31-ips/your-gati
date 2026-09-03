@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { StatusBadge } from './Common/StatusBadge';
 import { 
   Sparkles, 
   Building2, 
@@ -20,7 +21,7 @@ export const AIAnalysisView: React.FC = () => {
         <p className="text-slate-500 text-sm">No challenge selected for AI analysis.</p>
         <button
           onClick={() => setActivePage('submit-challenge')}
-          className="px-4 py-2 bg-blue-600 text-white font-semibold text-xs rounded-lg"
+          className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl"
         >
           Submit a Challenge First
         </button>
@@ -31,13 +32,13 @@ export const AIAnalysisView: React.FC = () => {
   const ai = challenge.aiAnalysis;
   const imageEvidence = challenge.evidence.find(e => e.type === 'image') || challenge.evidence[0];
 
-  const handleUniversityAccept = () => {
+  const handleUniversityAccept = async () => {
     setRole('university');
-    acceptChallenge(challenge.id, ai?.recommendedInstitutions[0] || 'BIT Sindri');
+    await acceptChallenge(challenge.id, ai?.recommendedInstitutions[0] || 'BIT Sindri');
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12 animate-fade-in">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12 animate-fade-in font-sans">
       
       {/* Header Banner */}
       <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden">
@@ -47,49 +48,47 @@ export const AIAnalysisView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-emerald-400" />
-              <span className="font-bold text-sm text-emerald-400">YOUR GATI AI — Visual Challenge Analysis</span>
+              <span className="font-bold text-sm text-emerald-400">YOUR GATI AI — Multimodal Vision Analysis</span>
             </div>
 
-            {ai?.isLiveGemini ? (
-              <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold rounded-full font-mono flex items-center gap-1.5 shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>LIVE GEMINI VISION ANALYSIS ({ai.modelName})</span>
-              </span>
-            ) : (
-              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-full font-mono flex items-center gap-1.5">
-                <span>DEMO MODE (Sample Analysis)</span>
-              </span>
-            )}
+            <StatusBadge status={challenge.status} />
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            Multimodal AI Infrastructure Assessment
+            Gemini 2.5 Flash Visual Assessment
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-300">
-            Image features & reported text analyzed via Gemini Vision API for automatic university matching in Jharkhand.
+            Multimodal visual inspection & user reported context analyzed for academic matching in Jharkhand.
           </p>
         </div>
       </div>
 
-      {/* TWO-COLUMN AI RESULT UI: Left Image Preview | Right Structured Analysis */}
+      {/* TWO-COLUMN AI RESULT UI */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* LEFT COLUMN: Uploaded Image Preview & Visual Details */}
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-              <span>Uploaded Evidence Image</span>
+              <span>Uploaded Evidence File</span>
               <span className="text-[10px] font-mono text-slate-400">{challenge.challengeCode}</span>
             </div>
 
             <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-950 aspect-video sm:aspect-square flex items-center justify-center">
               {imageEvidence ? (
-                <img
-                  src={imageEvidence.url}
-                  alt={challenge.title}
-                  className="w-full h-full object-cover"
-                />
+                imageEvidence.type === 'image' ? (
+                  <img
+                    src={imageEvidence.url}
+                    alt={challenge.title}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="p-4 text-center text-slate-300 text-xs">
+                    <p className="font-bold">{imageEvidence.name}</p>
+                    <span className="text-[10px] text-slate-400 uppercase">({imageEvidence.type})</span>
+                  </div>
+                )
               ) : (
                 <div className="text-center p-6 text-slate-400 text-xs">
                   <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-50" />
@@ -102,14 +101,13 @@ export const AIAnalysisView: React.FC = () => {
               </div>
             </div>
 
-            {/* Visual vs Reported Context Notice */}
             <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-1">
               <div className="flex items-center gap-1.5 font-bold">
                 <Info className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>AI Assessment vs User Claims</span>
+                <span>Visual Evidence vs User Claims</span>
               </div>
               <p className="text-[11px] text-blue-800 leading-relaxed">
-                Gemini AI visually verifies observable features in the photograph while maintaining clear distinction from unverified user-reported text claims.
+                Gemini AI visually verifies observable features in the uploaded photo while maintaining clear distinction from unverified user-reported text claims.
               </p>
             </div>
 
@@ -163,7 +161,7 @@ export const AIAnalysisView: React.FC = () => {
             </div>
             
             <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              {ai?.summary}
+              {ai?.summary || 'Multimodal analysis performed on reported challenge context.'}
             </p>
           </div>
 
@@ -176,9 +174,8 @@ export const AIAnalysisView: React.FC = () => {
 
             <ul className="space-y-2 text-xs">
               {(ai?.visibleEvidence || [
-                'Large pothole visible in roadway',
-                'Cracked asphalt surface surrounding cavity',
-                'Uneven pavement level creating vehicular hazard'
+                'Visual distress features detected',
+                'Infrastructure cavity observed'
               ]).map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1.5"></span>
@@ -191,9 +188,8 @@ export const AIAnalysisView: React.FC = () => {
           {/* RECOMMENDED EXPERTISE & STAKEHOLDERS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
-            {/* Required Expertise */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Required Expertise</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Required Academic Expertise</span>
               <div className="flex flex-wrap gap-1.5">
                 {(ai?.requiredExpertise || ['Civil Engineering', 'Transportation Engineering']).map((exp, idx) => (
                   <span key={idx} className="px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[11px] font-semibold">
@@ -203,11 +199,10 @@ export const AIAnalysisView: React.FC = () => {
               </div>
             </div>
 
-            {/* Recommended Stakeholders */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
               <span className="text-[10px] uppercase font-bold text-slate-400 block">Recommended Stakeholders</span>
               <div className="space-y-1">
-                {(ai?.potentialIndustryPartners || ['Municipal Authority', 'University Civil Dept']).map((stk, idx) => (
+                {(ai?.potentialIndustryPartners || ['Municipal Authority', 'University Research Cell']).map((stk, idx) => (
                   <p key={idx} className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <span className="w-1 h-1 rounded-full bg-purple-500"></span>
                     <span>{stk}</span>
@@ -221,7 +216,7 @@ export const AIAnalysisView: React.FC = () => {
           {/* RECOMMENDED ACTION */}
           <div className="bg-emerald-50/80 p-5 rounded-2xl border border-emerald-200 text-xs space-y-1">
             <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">Recommended Action</span>
-            <p className="font-extrabold text-slate-900 text-sm">{ai?.recommendedAction || 'Conduct physical engineering inspection and prioritize road repair.'}</p>
+            <p className="font-extrabold text-slate-900 text-sm">{ai?.recommendedAction || 'Conduct physical engineering inspection and initiate repair project.'}</p>
           </div>
 
           {/* UNIVERSITY ACCEPTANCE CTA */}

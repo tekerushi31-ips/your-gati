@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { 
   UserRole, 
   Challenge, 
@@ -10,7 +10,9 @@ import type {
   JharkhandDistrict, 
   Urgency,
   SupportType,
-  ProjectStatus
+  ProjectStatus,
+  MilestoneStatus,
+  AIAnalysis
 } from '../types';
 import { 
   MOCK_UNIVERSITIES, 
@@ -52,7 +54,8 @@ export type PageView =
   | 'admin-departments'
   | 'admin-staff'
   | 'admin-challenge-detail'
-  | 'nearby-issues';
+  | 'nearby-issues'
+  | 'help-support';
 
 export type Language = 'en' | 'hi' | 'mr';
 
@@ -80,14 +83,17 @@ interface AppContextType {
   setSelectedProject: (project: Project | null) => void;
   pendingChallengeForProject: Challenge | null;
   setPendingChallengeForProject: (challenge: Challenge | null) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   toasts: ToastState[];
   showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
   isGeminiActive: boolean;
   
-  // Actions linked to dataService persistence
-  validateChallenge: (challengeId: string) => void;
-  assignUniversityToChallenge: (challengeId: string, universityName: string) => void;
+  // Data Service Operations (Async)
+  refreshData: () => Promise<void>;
+  validateChallenge: (challengeId: string) => Promise<void>;
+  assignUniversityToChallenge: (challengeId: string, universityName: string) => Promise<void>;
   
   submitChallenge: (data: {
     title: string;
@@ -102,9 +108,10 @@ interface AppContextType {
     expectedSolution: string;
     contactInfo: string;
     evidenceFiles?: { url: string; name: string; type: 'image' | 'video' | 'document'; base64Data?: string }[];
+    aiAnalysisResult?: AIAnalysis | null;
   }) => Promise<Challenge>;
 
-  acceptChallenge: (challengeId: string, universityName: string) => void;
+  acceptChallenge: (challengeId: string, universityName: string) => Promise<void>;
   
   createProject: (data: {
     challengeId: string;
@@ -116,18 +123,18 @@ interface AppContextType {
     requiredSkills: string[];
     requiredIndustrySupport: SupportType[];
     expectedOutcome: string;
-  }) => Project;
+  }) => Promise<Project>;
 
   collaborateOnProject: (
     projectId: string,
     partnerName: string,
     supportTypes: SupportType[],
     notes: string
-  ) => void;
+  ) => Promise<void>;
 
-  advanceProjectStage: (projectId: string, newStatus: ProjectStatus) => void;
-  updateMilestoneProgress: (projectId: string, milestoneId: string, status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED', percentage: number) => void;
-  markNotificationRead: (id: string) => void;
+  advanceProjectStage: (projectId: string, newStatus: ProjectStatus) => Promise<void>;
+  updateMilestoneProgress: (projectId: string, milestoneId: string, status: MilestoneStatus, percentage: number) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
   resetPrototypeState: () => void;
 }
 
@@ -137,32 +144,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRole] = useState<UserRole>('citizen');
   const [activePage, setActivePage] = useState<PageView>('citizen-dashboard');
   const [language, setLanguage] = useState<Language>('en');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // Load initial state from local storage data service
-  const [challenges, setChallenges] = useState<Challenge[]>(() => dataService.getChallenges());
-  const [projects, setProjects] = useState<Project[]>(() => dataService.getProjects());
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => dataService.getNotifications());
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   
   const [universities] = useState<University[]>(MOCK_UNIVERSITIES);
   const [industryPartners] = useState<IndustryPartner[]>(MOCK_INDUSTRY_PARTNERS);
   
-  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(challenges[0] || null);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(projects[0] || null);
+  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [pendingChallengeForProject, setPendingChallengeForProject] = useState<Challenge | null>(null);
   
   const [toasts, setToasts] = useState<ToastState[]>([]);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
-    const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      removeToast(id);
-    }, 4500);
-  };
-
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
-  };
+  }, []);
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info') => {
+    const uniqueId = `toast-${Math.random().toString(36).substring(2, 9)}`;
+    setToasts(prev => [...prev, { id: uniqueId, message, type }]);
+    setTimeout(() => {
+      removeToast(uniqueId);
+    }, 4500);
+  }, [removeToast]);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const fetchedChallenges = await dataService.getChallenges();
+      const fetchedProjects = await dataService.getProjects();
+      const fetchedNotifications = await dataService.getNotifications();
+
+      setChallenges(fetchedChallenges);
+      setProjects(fetchedProjects);
+      setNotifications(fetchedNotifications);
+
+      if (fetchedChallenges.length > 0 && !selectedChallenge) {
+        setSelectedChallenge(fetchedChallenges[0]);
+      }
+      if (fetchedProjects.length > 0 && !selectedProject) {
+        setSelectedProject(fetchedProjects[0]);
+      }
+    } catch (e) {
+      console.warn('Refresh data error:', e);
+    }
+  }, [selectedChallenge, selectedProject]);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   const setRole = (role: UserRole) => {
     setCurrentRole(role);
@@ -172,14 +204,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else if (role === 'citizen') setActivePage('citizen-dashboard');
   };
 
-  const validateChallenge = (challengeId: string) => {
-    const updated = dataService.validateChallenge(challengeId);
+  const validateChallenge = async (challengeId: string) => {
+    const updated = await dataService.validateChallenge(challengeId);
     setChallenges(updated);
     showToast(`Challenge validated by Government Admin and opened for university match.`, 'success');
   };
 
-  const assignUniversityToChallenge = (challengeId: string, universityName: string) => {
-    const updated = dataService.assignUniversity(challengeId, universityName);
+  const assignUniversityToChallenge = async (challengeId: string, universityName: string) => {
+    const updated = await dataService.assignUniversity(challengeId, universityName);
     setChallenges(updated);
     showToast(`Challenge assigned to ${universityName}! Sent to institution portal.`, 'success');
   };
@@ -197,18 +229,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     expectedSolution: string;
     contactInfo: string;
     evidenceFiles?: { url: string; name: string; type: 'image' | 'video' | 'document'; base64Data?: string }[];
+    aiAnalysisResult?: AIAnalysis | null;
   }): Promise<Challenge> => {
-    const newChallenge = dataService.submitChallenge(data);
-    setChallenges(dataService.getChallenges());
-    setNotifications(dataService.getNotifications());
+    const newChallenge = await dataService.submitChallenge(data);
+    await refreshData();
     setSelectedChallenge(newChallenge);
 
-    showToast(`Challenge ${newChallenge.challengeCode} submitted successfully! Saved to data engine.`, 'success');
+    showToast(`Challenge ${newChallenge.challengeCode} submitted successfully to Supabase DB!`, 'success');
     return newChallenge;
   };
 
-  const acceptChallenge = (challengeId: string, universityName: string) => {
-    const updated = dataService.acceptChallenge(challengeId, universityName);
+  const acceptChallenge = async (challengeId: string, universityName: string) => {
+    const updated = await dataService.acceptChallenge(challengeId, universityName);
     setChallenges(updated);
 
     const targetCh = updated.find(c => c.id === challengeId);
@@ -219,7 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const createProject = (data: {
+  const createProject = async (data: {
     challengeId: string;
     title: string;
     description: string;
@@ -229,27 +261,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     requiredSkills: string[];
     requiredIndustrySupport: SupportType[];
     expectedOutcome: string;
-  }): Project => {
-    const newProject = dataService.createProject(data);
-    setProjects(dataService.getProjects());
-    setChallenges(dataService.getChallenges());
+  }): Promise<Project> => {
+    const newProject = await dataService.createProject(data);
+    await refreshData();
     setSelectedProject(newProject);
     setPendingChallengeForProject(null);
 
-    showToast(`Project "${data.title}" created successfully!`, 'success');
+    showToast(`Project "${data.title}" created successfully in Supabase DB!`, 'success');
     setActivePage('project-lifecycle');
     return newProject;
   };
 
-  const collaborateOnProject = (
+  const collaborateOnProject = async (
     projectId: string,
     partnerName: string,
     supportTypes: SupportType[],
     notes: string
   ) => {
-    const updatedProjects = dataService.collaborateOnProject(projectId, partnerName, supportTypes, notes);
+    const updatedProjects = await dataService.collaborateOnProject(projectId, partnerName, supportTypes, notes);
     setProjects(updatedProjects);
-    setChallenges(dataService.getChallenges());
+    await refreshData();
 
     const updatedSelected = updatedProjects.find(p => p.id === projectId);
     if (updatedSelected) setSelectedProject(updatedSelected);
@@ -257,45 +288,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Collaboration offer submitted by ${partnerName}! Pledged to project.`, 'success');
   };
 
-  const advanceProjectStage = (projectId: string, newStatus: ProjectStatus) => {
-    const updatedProjects = dataService.advanceProjectStage(projectId, newStatus);
-    setProjects(updatedProjects);
-
-    const updatedSelected = updatedProjects.find(p => p.id === projectId);
-    if (updatedSelected) setSelectedProject(updatedSelected);
-
+  const advanceProjectStage = async (projectId: string, newStatus: ProjectStatus) => {
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus } : p));
     showToast(`Project stage updated to ${newStatus.toUpperCase().replace('_', ' ')}`, 'info');
   };
 
-  const updateMilestoneProgress = (
+  const updateMilestoneProgress = async (
     projectId: string,
     milestoneId: string,
-    status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED',
+    status: MilestoneStatus,
     percentage: number
   ) => {
-    setProjects(prev => prev.map(proj => {
-      if (proj.id === projectId) {
-        const updatedMs = proj.milestones.map(m => m.id === milestoneId ? { ...m, status, completionPercentage: percentage, updatedAt: new Date().toISOString() } : m);
-        const totalPct = Math.round(updatedMs.reduce((acc, m) => acc + m.completionPercentage, 0) / updatedMs.length);
-        const updated = { ...proj, milestones: updatedMs, progressPercentage: totalPct };
-        if (selectedProject?.id === projectId) setSelectedProject(updated);
-        return updated;
-      }
-      return proj;
-    }));
-    showToast('Milestone progress updated.', 'success');
+    const updated = await dataService.updateMilestoneProgress(projectId, milestoneId, status, percentage);
+    setProjects(updated);
+    const targetProj = updated.find(p => p.id === projectId);
+    if (targetProj) setSelectedProject(targetProj);
+    showToast('Milestone progress updated in Supabase DB.', 'success');
   };
 
-  const markNotificationRead = (id: string) => {
-    const updated = dataService.markNotificationRead(id);
+  const markNotificationRead = async (id: string) => {
+    const updated = await dataService.markNotificationRead(id);
     setNotifications(updated);
   };
 
   const resetPrototypeState = () => {
     dataService.resetDemoData();
-    setChallenges(dataService.getChallenges());
-    setProjects(dataService.getProjects());
-    setNotifications(dataService.getNotifications());
+    refreshData();
     showToast('Prototype demo data reset to default.', 'info');
   };
 
@@ -318,10 +336,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSelectedProject,
       pendingChallengeForProject,
       setPendingChallengeForProject,
+      searchQuery,
+      setSearchQuery,
       toasts,
       showToast,
       removeToast,
-      isGeminiActive: false,
+      isGeminiActive: true,
+      refreshData,
       validateChallenge,
       assignUniversityToChallenge,
       submitChallenge,

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { StatusBadge } from './Common/StatusBadge';
+import { Modal } from './Common/Modal';
 import { 
   Building2, 
   CheckCircle2, 
@@ -21,19 +23,25 @@ export const UniversityDashboard: React.FC = () => {
   const { profile } = useAuth();
 
   const [confirmAcceptId, setConfirmAcceptId] = useState<string | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   const universityName = profile?.organizationName || 'BIT Sindri';
 
   const openChallenges = challenges.filter(c => c.status === 'SUBMITTED' || c.status === 'VALIDATED' || c.status === 'UNDER_REVIEW' || c.status === 'submitted');
   const acceptedChallenges = challenges.filter(c => c.status === 'UNIVERSITY_ACCEPTED' || c.status === 'PROJECT_CREATED' || c.status === 'INDUSTRY_COLLABORATION' || c.status === 'assigned');
 
-  const handleConfirmAccept = (challengeId: string) => {
-    acceptChallenge(challengeId, universityName);
-    setConfirmAcceptId(null);
+  const handleConfirmAccept = async (challengeId: string) => {
+    setIsAccepting(true);
+    try {
+      await acceptChallenge(challengeId, universityName);
+      setConfirmAcceptId(null);
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto font-sans">
       
       {/* Header Banner */}
       <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -62,37 +70,41 @@ export const UniversityDashboard: React.FC = () => {
       </div>
 
       {/* CONFIRMATION MODAL FOR CHALLENGE ACCEPTANCE */}
-      {confirmAcceptId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white max-w-md w-full p-6 rounded-3xl border border-slate-200 shadow-2xl space-y-4 animate-slide-up">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Building2 className="w-6 h-6" />
-            </div>
+      <Modal
+        isOpen={Boolean(confirmAcceptId)}
+        onClose={() => setConfirmAcceptId(null)}
+        title="Accept Challenge Assignment?"
+      >
+        <div className="space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Building2 className="w-6 h-6" />
+          </div>
 
-            <div>
-              <h3 className="text-lg font-black text-slate-900">Accept Challenge Assignment?</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Your institution (<strong>{universityName}</strong>) will take ownership of this challenge and transition it into a mentored research project.
-              </p>
-            </div>
+          <div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your institution (<strong>{universityName}</strong>) will take ownership of this challenge in Supabase and transition it into a mentored research project.
+            </p>
+          </div>
 
-            <div className="pt-2 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setConfirmAcceptId(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleConfirmAccept(confirmAcceptId)}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md"
-              >
-                Confirm & Accept
-              </button>
-            </div>
+          <div className="pt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmAcceptId(null)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={isAccepting}
+              onClick={() => confirmAcceptId && handleConfirmAccept(confirmAcceptId)}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md"
+            >
+              {isAccepting ? 'Accepting in Supabase...' : 'Confirm & Accept'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* OPEN COMMUNITY CHALLENGES AVAILABLE FOR ACCEPTANCE */}
       <div className="space-y-4">
@@ -118,9 +130,7 @@ export const UniversityDashboard: React.FC = () => {
                     <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">
                       {ch.challengeCode}
                     </span>
-                    <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full uppercase">
-                      Urgency: {ch.urgency}
-                    </span>
+                    <StatusBadge status={ch.status} />
                   </div>
 
                   <h3 className="text-base font-black text-slate-900">{ch.title}</h3>
@@ -192,9 +202,7 @@ export const UniversityDashboard: React.FC = () => {
               
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded font-mono">
-                    {proj.status}
-                  </span>
+                  <StatusBadge status={proj.status} />
                   <span className="text-xs font-mono text-slate-400">{proj.challengeCode}</span>
                 </div>
 

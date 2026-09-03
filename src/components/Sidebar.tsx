@@ -133,7 +133,7 @@ export const Sidebar: React.FC = () => {
       {/* Footer Support & Logout */}
       <div className="p-4 border-t border-slate-200 space-y-1 bg-slate-50/50 text-xs">
         <button
-          onClick={() => setActivePage('admin-dashboard')}
+          onClick={() => setActivePage('help-support')}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs font-medium transition-colors"
         >
           <HelpCircle className="w-4 h-4 text-slate-400" />

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { StatusBadge } from './Common/StatusBadge';
+import { Modal } from './Common/Modal';
 import type { SupportType } from '../types';
 import { 
   Building2, 
@@ -16,8 +18,9 @@ export const IndustryDashboard: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedSupportTypes, setSelectedSupportTypes] = useState<SupportType[]>(['Hardware', 'Funding']);
   const [collaborationNotes, setCollaborationNotes] = useState('Pledging equipment and CSR research grant.');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const industryName = profile?.organizationName || 'IoT Solutions & Tata Steel CSR';
+  const industryName = profile?.organizationName || 'Tata Steel CSR & Industry Partners';
 
   const availableSupportTypes: SupportType[] = [
     'Mentorship', 
@@ -34,16 +37,21 @@ export const IndustryDashboard: React.FC = () => {
     );
   };
 
-  const handlePledgeSubmit = (e: React.FormEvent) => {
+  const handlePledgeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || selectedSupportTypes.length === 0) return;
 
-    collaborateOnProject(selectedProjectId, industryName, selectedSupportTypes, collaborationNotes);
-    setSelectedProjectId(null);
+    setIsSubmitting(true);
+    try {
+      await collaborateOnProject(selectedProjectId, industryName, selectedSupportTypes, collaborationNotes);
+      setSelectedProjectId(null);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto font-sans">
       
       {/* Header Banner */}
       <div className="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -67,79 +75,70 @@ export const IndustryDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* COLLABORATION PLEDGE MODAL */}
-      {selectedProjectId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={handlePledgeSubmit} className="bg-white max-w-lg w-full p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-2xl space-y-5 animate-slide-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Handshake className="w-5 h-5 text-purple-600" />
-                <h3 className="text-lg font-black text-slate-900">Pledge Industry Collaboration</h3>
-              </div>
-              <button 
-                type="button" 
-                onClick={() => setSelectedProjectId(null)}
-                className="text-slate-400 hover:text-slate-700 text-xs font-bold"
-              >
-                Close
-              </button>
+      {/* ACCESSIBLE COLLABORATION PLEDGE MODAL */}
+      <Modal
+        isOpen={Boolean(selectedProjectId)}
+        onClose={() => setSelectedProjectId(null)}
+        title="Pledge Industry Collaboration"
+        maxWidth="lg"
+      >
+        <form onSubmit={handlePledgeSubmit} className="space-y-5">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+              Select Support Offerings <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {availableSupportTypes.map(st => {
+                const isChecked = selectedSupportTypes.includes(st);
+                return (
+                  <button
+                    type="button"
+                    key={st}
+                    onClick={() => handleSupportTypeToggle(st)}
+                    className={`p-2.5 rounded-xl border font-bold transition-all text-left flex items-center justify-between ${
+                      isChecked 
+                        ? 'bg-purple-50 border-purple-500 text-purple-900' 
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span>{st}</span>
+                    {isChecked && <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />}
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                Select Support Offerings <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {availableSupportTypes.map(st => {
-                  const isChecked = selectedSupportTypes.includes(st);
-                  return (
-                    <button
-                      type="button"
-                      key={st}
-                      onClick={() => handleSupportTypeToggle(st)}
-                      className={`p-2.5 rounded-xl border font-bold transition-all text-left flex items-center justify-between ${
-                        isChecked 
-                          ? 'bg-purple-50 border-purple-500 text-purple-900' 
-                          : 'bg-slate-50 border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <span>{st}</span>
-                      {isChecked && <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="space-y-1.5">
+            <label htmlFor="pledge-notes" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Pledge Details / Notes</label>
+            <textarea
+              id="pledge-notes"
+              rows={3}
+              value={collaborationNotes}
+              onChange={(e) => setCollaborationNotes(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3"
+              placeholder="Specify equipment, grant amount, or mentorship commitments..."
+            />
+          </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Pledge Details / Notes</label>
-              <textarea
-                rows={3}
-                value={collaborationNotes}
-                onChange={(e) => setCollaborationNotes(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3"
-                placeholder="Specify equipment, grant amount, or mentorship commitments..."
-              />
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedProjectId(null)}
-                className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md"
-              >
-                Submit Collaboration Request
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="pt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedProjectId(null)}
+              className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md"
+            >
+              {isSubmitting ? 'Submitting to Supabase...' : 'Submit Collaboration Request'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* OPEN UNIVERSITY PROJECTS SEEKING SPONSORSHIP */}
       <div className="space-y-4">
@@ -150,7 +149,7 @@ export const IndustryDashboard: React.FC = () => {
 
         <div className="grid grid-cols-1 gap-6">
           {projects.map(proj => {
-            const hasCollab = proj.collaborations.length > 0;
+            const hasCollab = proj.collaborations && proj.collaborations.length > 0;
             return (
               <div key={proj.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                 
@@ -165,11 +164,7 @@ export const IndustryDashboard: React.FC = () => {
                     </span>
                   </div>
 
-                  <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                    hasCollab ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {hasCollab ? 'Active Collaboration' : 'Seeking Industry Partner'}
-                  </span>
+                  <StatusBadge status={hasCollab ? 'INDUSTRY_COLLABORATION' : proj.status} />
                 </div>
 
                 <div>
