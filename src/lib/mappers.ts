@@ -52,7 +52,7 @@ export function mapAIAnalysisFromDB(row: any): AIAnalysis {
   return {
     id: row.id,
     challengeId: row.challenge_id,
-    modelName: row.model_name || 'gemini-2.5-flash',
+    modelName: row.model_name || 'gemini-3.6-flash',
     isLiveGemini: Boolean(row.is_live_gemini),
     problemDetected: row.problem_detected !== false,
     detectedIssue: row.detected_issue || '',

@@ -17,6 +17,13 @@ export interface GeminiVisionInput {
   imageMimeType?: string;
 }
 
+const CANDIDATE_GEMINI_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash'
+];
+
 const SYSTEM_INSTRUCTION = `You are YOUR GATI's societal challenge image analysis assistant.
 Analyze the uploaded image carefully in combination with the user's description.
 
@@ -84,13 +91,10 @@ const RESPONSE_SCHEMA = {
 
 export async function analyzeChallengeWithGemini(input: GeminiVisionInput): Promise<AIAnalysis> {
   if (isGeminiConfigured && ai && input.imageBase64) {
-    try {
-      console.log('✨ YOUR GATI: Initiating Real Gemini Multimodal Vision Analysis...');
-      
-      const cleanBase64 = input.imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      const mimeType = input.imageMimeType || 'image/jpeg';
+    const cleanBase64 = input.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const mimeType = input.imageMimeType || 'image/jpeg';
 
-      const promptText = `User Reported Challenge:
+    const promptText = `User Reported Challenge:
 Title: "${input.title}"
 Description: "${input.description}"
 Reported District: ${input.district}
@@ -98,57 +102,73 @@ Reported Domain: ${input.domain}
 
 Please analyze this image along with the user's description. Distinguish visual observations from user claims.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { inlineData: { mimeType, data: cleanBase64 } },
-              { text: promptText }
-            ]
+    let lastError: any = null;
+
+    // Resilient Model Fallback Loop
+    for (const modelName of CANDIDATE_GEMINI_MODELS) {
+      try {
+        console.log(`✨ YOUR GATI: Initiating Gemini Analysis with model [${modelName}]...`);
+
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType, data: cleanBase64 } },
+                { text: promptText }
+              ]
+            }
+          ],
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+            temperature: 0.2
           }
-        ],
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-          temperature: 0.2
-        }
-      });
+        });
 
-      const rawText = response.text || '';
-      const parsed = JSON.parse(rawText);
+        const rawText = response.text || '';
+        const parsed = JSON.parse(rawText);
 
-      const confidenceFloat = typeof parsed.confidence === 'number' ? parsed.confidence : 0.93;
-      const confidencePercentage = confidenceFloat <= 1 ? Math.round(confidenceFloat * 100) : Math.round(confidenceFloat);
+        const confidenceFloat = typeof parsed.confidence === 'number' ? parsed.confidence : 0.93;
+        const confidencePercentage = confidenceFloat <= 1 ? Math.round(confidenceFloat * 100) : Math.round(confidenceFloat);
 
-      const mappedDomain: Domain = (parsed.domain || input.domain) as Domain;
-      const mappedPriority: Urgency = (parsed.severity || input.urgency) as Urgency;
+        const mappedDomain: Domain = (parsed.domain || input.domain) as Domain;
+        const mappedPriority: Urgency = (parsed.severity || input.urgency) as Urgency;
 
-      return {
-        id: `ai-gemini-${Date.now()}`,
-        challengeId: input.challengeId,
-        modelName: 'gemini-2.5-flash',
-        isLiveGemini: true,
-        problemDetected: parsed.problem_detected !== false,
-        detectedIssue: parsed.detected_issue || input.title,
-        primaryCategory: mappedDomain,
-        subCategory: parsed.sub_category || 'Infrastructure Assessment',
-        priority: mappedPriority,
-        confidenceScore: confidencePercentage,
-        visibleEvidence: parsed.visible_evidence || ['Visual inspection completed via Gemini Vision AI'],
-        userReportedContext: input.description,
-        estimatedImpact: parsed.estimated_public_impact || 'High Community Impact',
-        recommendedAction: parsed.recommended_action || 'Conduct physical engineering inspection and initiate repair project.',
-        requiredExpertise: parsed.required_expertise || ['Civil Engineering', 'Infrastructure Management'],
-        recommendedInstitutions: mapInstitutionsForDomain(mappedDomain),
-        potentialIndustryPartners: parsed.recommended_stakeholders || ['Municipal Authority', 'Infrastructure Technology Partner'],
-        summary: parsed.summary || 'Multimodal Gemini analysis performed on visual evidence and reported text.'
-      };
-    } catch (error) {
-      console.error('❌ Gemini Vision API Error:', error);
-      throw error;
+        console.log(`✅ Gemini Analysis Succeeded using [${modelName}]`);
+
+        return {
+          id: `ai-gemini-${Date.now()}`,
+          challengeId: input.challengeId,
+          modelName: modelName,
+          isLiveGemini: true,
+          problemDetected: parsed.problem_detected !== false,
+          detectedIssue: parsed.detected_issue || input.title,
+          primaryCategory: mappedDomain,
+          subCategory: parsed.sub_category || 'Infrastructure Assessment',
+          priority: mappedPriority,
+          confidenceScore: confidencePercentage,
+          visibleEvidence: parsed.visible_evidence || ['Visual inspection completed via Gemini Vision AI'],
+          userReportedContext: input.description,
+          estimatedImpact: parsed.estimated_public_impact || 'High Community Impact',
+          recommendedAction: parsed.recommended_action || 'Conduct physical engineering inspection and initiate repair project.',
+          requiredExpertise: parsed.required_expertise || ['Civil Engineering', 'Infrastructure Management'],
+          recommendedInstitutions: mapInstitutionsForDomain(mappedDomain),
+          potentialIndustryPartners: parsed.recommended_stakeholders || ['Municipal Authority', 'Infrastructure Technology Partner'],
+          summary: parsed.summary || 'Multimodal Gemini analysis performed on visual evidence and reported text.'
+        };
+      } catch (error: any) {
+        console.warn(`⚠️ Model [${modelName}] returned error:`, error?.message || error);
+        lastError = error;
+        // Continue loop to try next model candidate
+      }
+    }
+
+    if (lastError) {
+      console.error('❌ All Gemini Vision API candidate models failed:', lastError);
+      throw lastError;
     }
   }
 
@@ -179,7 +199,7 @@ export function getDemoFallbackAnalysis(input: GeminiVisionInput): AIAnalysis {
     return {
       id: `ai-demo-${Date.now()}`,
       challengeId: input.challengeId,
-      modelName: 'gemini-2.5-flash (Demo Mode)',
+      modelName: 'gemini-3.6-flash (Demo Mode)',
       isLiveGemini: false,
       problemDetected: true,
       detectedIssue: 'Severe Road Surface Damage & Potholes',
@@ -205,7 +225,7 @@ export function getDemoFallbackAnalysis(input: GeminiVisionInput): AIAnalysis {
   return {
     id: `ai-demo-${Date.now()}`,
     challengeId: input.challengeId,
-    modelName: 'gemini-2.5-flash (Demo Mode)',
+    modelName: 'gemini-3.6-flash (Demo Mode)',
     isLiveGemini: false,
     problemDetected: true,
     detectedIssue: isWater ? 'Groundwater Depletion & Agricultural Drought Stress' : input.title,

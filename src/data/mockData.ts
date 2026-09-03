@@ -158,7 +158,7 @@ export const MOCK_CHALLENGES: Challenge[] = [
     aiAnalysis: {
       id: 'ai-101',
       challengeId: 'ch-101',
-      modelName: 'gemini-2.5-flash',
+      modelName: 'gemini-3.6-flash',
       isLiveGemini: true,
       problemDetected: true,
       detectedIssue: 'Severe Road Surface Damage & Potholes',
@@ -220,7 +220,7 @@ export const MOCK_CHALLENGES: Challenge[] = [
     aiAnalysis: {
       id: 'ai-102',
       challengeId: 'ch-102',
-      modelName: 'gemini-2.5-flash (Demo Mode)',
+      modelName: 'gemini-3.6-flash (Demo Mode)',
       isLiveGemini: false,
       problemDetected: true,
       detectedIssue: 'Micro-Grid Solar Capacity Deficiency',

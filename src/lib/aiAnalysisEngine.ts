@@ -56,7 +56,7 @@ export function runAIChallengeAnalysis(
   return {
     id: `ai-${Date.now()}`,
     challengeId,
-    modelName: 'gemini-2.5-flash',
+    modelName: 'gemini-3.6-flash',
     isLiveGemini: false,
     problemDetected: true,
     detectedIssue: title,
